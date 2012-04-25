@@ -6,7 +6,7 @@ sub new{
         _prevNode => [],
         _nextNode => [],
         _nodeNum => shift,
-        _label => shift
+        _label => shift,
     };
     bless $self, $class;
     return $self;

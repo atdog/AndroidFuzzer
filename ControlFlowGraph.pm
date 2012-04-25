@@ -6,7 +6,7 @@ sub new{
     my $class = shift;
     my $self = {
         _methodName => shift,
-        _local => shift,
+        _local => {},
         _root => shift,
     };
     bless $self, $class;

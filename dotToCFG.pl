@@ -124,7 +124,7 @@ sub parseMethodDotFile {
             my $node = new ControlFlowNode(-1,$1);
             $methodCFG->{_root} = $node;
             push(@{$node->{_prevNode}}, $node);
-            $methodCFG = new ControlFlowGraph($methodName,{},$node);
+            $methodCFG = new ControlFlowGraph($methodName,$node);
         }
         elsif($_ =~ m/.*\"(\d+)\"->\"(\d+)\".*/) {
             push(@{$nodeArray[$1]->{_nextNode}},$nodeArray[$2]);
@@ -137,10 +137,35 @@ sub parseMethodDotFile {
                 push(@{$methodCFG->{_root}->{_nextNode}}, $nodeArray[$1]);
                 push(@{$node->{_prevNode}}, $methodCFG->{_root});
             }
+            ###
+            #  need find the type of local vars
+            ###
+            my $statement = $2;
+            if($statement =~ m/(.*) :?= (.*)/) {
+                # r0 = this
+                my $localVar = $1;
+                my $varType = $2;
+                if($varType eq '@this') {
+                   $varType = "$entryPointClass";
+                }
+                # rx = @parameterX
+                elsif($varType =~ m/\@parameter(\d+)/) {
+                    my $numOfPara = $1;
+                    my ($parameter) = $methodName =~ m/.*\((.*)\)/;
+                    for my $i (1..$numOfPara) {
+                        $parameter =~ s/^[^,]*,(.*)$/$1/;
+                    }
+                    $parameter =~ s/^([^,]*),.*$/$1/;
+                    $varType = $parameter;
+                }
+                $methodCFG->{_local}->{$localVar} = $varType;
+            }
+            ###
         }
     }
     close $FILE;
-    $methodCFG->dumpGraph;
+    #$methodCFG->dumpGraph;
+    #print Dumper($methodCFG->{_local});
 }
 
 sub Main{
