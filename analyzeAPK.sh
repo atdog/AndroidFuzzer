@@ -34,5 +34,5 @@ echo "[0;32m=====> dex2jar[0m"
 # Use soot.jar to generate dot file for constructing CFG
 #####
 echo "[0;32m=====> soot[0m"
-java -jar soot-2.5.0.jar -dump-cfg jb.uce -cp /System/Library/Frameworks/JavaVM.framework/Classes/classes.jar:/Users/atdog/eclipse-android/android-sdk-mac_x86/platforms/android-14/android.jar:$DIR_NAME -process-path $DIR_NAME -d $DIR_NAME/sootOutput
+java -jar soot-2.5.0.jar -dump-cfg jb.uce -cp /System/Library/Frameworks/JavaVM.framework/Classes/classes.jar:../lib:$DIR_NAME -process-path $DIR_NAME -d $DIR_NAME/sootOutput
 

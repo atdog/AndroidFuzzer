@@ -158,14 +158,19 @@ sub parseMethodDotFile {
                     $parameter =~ s/^([^,]*),.*$/$1/;
                     $varType = $parameter;
                 }
+                # rx = (Typecast) ry
+                elsif($varType =~ m/\((.*)\) .*/) {
+                    $varType = $1;
+                }
                 $methodCFG->{_local}->{$localVar} = $varType;
             }
+
             ###
         }
     }
     close $FILE;
     #$methodCFG->dumpGraph;
-    #print Dumper($methodCFG->{_local});
+    print Dumper($methodCFG->{_local});
 }
 
 sub Main{
