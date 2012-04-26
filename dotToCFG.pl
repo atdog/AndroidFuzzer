@@ -95,9 +95,8 @@ sub parseDotFileFromEntryPoint {
     for my $comName (keys %APP_ENTRY_POINTS) {
         for my $i (0..@{$APP_ENTRY_POINTS{$comName}}-1) {
             my $entryPoint = $APP_ENTRY_POINTS{$comName}[$i]->{classname};
-            if($entryPoint =~ m/^\..*$/) {
-                $entryPoint = "$PACKAGE$entryPoint";
-            }
+            $entryPoint = "$PACKAGE.$entryPoint";
+            $entryPoint =~ s/\.\./\./g;
             for my $j (0..@{$ENTRY_POINT{$comName}}-1) {
                 parseMethodDotFile($entryPoint, $ENTRY_POINT{$comName}[$j]);
             }
