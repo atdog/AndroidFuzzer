@@ -177,7 +177,7 @@ sub parseMethodDotFile {
                         if(exists $methodCFG->{_local}->{$className}) {
                             $className = $methodCFG->{_local}->{$className};
                         }
-                        my $returnType = `java -jar typeChecker.jar -c '$className' -f $fieldName -e $JARPATH`;
+                        my $returnType = `java -jar tools/typeChecker.jar -c '$className' -f $fieldName -e $JARPATH`;
                         chomp($returnType);
                         $varType = $returnType;
                         print "-=-=-=-> className: $className\n";
@@ -232,13 +232,13 @@ sub parseMethodDotFile {
                         # run typeChecker.jar
                         my $returnType;
                         if($parasToCheck eq "") {
-                            $returnType = `java -jar typeChecker.jar -c '$className' -m $apiName -e $JARPATH`;
+                            $returnType = `java -jar tools/typeChecker.jar -c '$className' -m $apiName -e $JARPATH`;
                             print "-=-=-=-> returnType: $returnType";
                         }
                         else {
                             $parasToCheck =~ s/^,(.*)$/$1/;
                             print "-=-=-=-> parameter: $parasToCheck\n";
-                            $returnType = `java -jar typeChecker.jar -c '$className' -m $apiName -e $JARPATH -p $parasToCheck`;
+                            $returnType = `java -jar tools/typeChecker.jar -c '$className' -m $apiName -e $JARPATH -p $parasToCheck`;
                             print "-=-=-=-> returnType: $returnType";
                         }
                         chomp ($returnType);
