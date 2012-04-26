@@ -10,16 +10,16 @@ public class Option {
 	@Parameter
 	List<String> parameters = new ArrayList<String>();
 
-	@Parameter(names = "-classname", description = "Class name", required = true)
+	@Parameter(names = {"-classname", "-c"}, description = "Class name", required = true)
 	String classname;
 
-	@Parameter(names = "-methodname", description = "Method name of the specific class", required = true)
+	@Parameter(names = {"-methodname", "-m"}, description = "Method name of the specific class", required = true)
 	String methodname;
 
-	@Parameter(names = "-parameter", description = "Method parameter")
+	@Parameter(names = {"-parameter", "-p"}, description = "Method parameter")
 	String paras = null;
 
-	@Parameter(names = "-extjar", description = "External jar to import to check type")
+	@Parameter(names = {"-extjar", "-e"}, description = "External jar to import to check type")
 	String jars = null;
 
 }
