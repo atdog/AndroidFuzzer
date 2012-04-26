@@ -10,6 +10,7 @@ if($#ARGV != 0) {
     print "$0 path\n";
     exit;
 }
+my $JARPATH = "/Users/atdog/Desktop/evo/framework/core-solve.jar,/Users/atdog/Desktop/evo/framework/bouncycastle-solve.jar,/Users/atdog/Desktop/evo/framework/ext-solve.jar,/Users/atdog/Desktop/evo/framework/framework-solve.jar,/Users/atdog/Desktop/evo/framework/android.policy-solve.jar,/Users/atdog/Desktop/evo/framework/services-solve.jar,/Users/atdog/Desktop/evo/framework/core-junit-solve.jar,/Users/atdog/Desktop/evo/framework/com.htc.commonctrl-solve.jar,/Users/atdog/Desktop/evo/framework/com.htc.framework-solve.jar,/Users/atdog/Desktop/evo/framework/com.htc.android.pimlib-solve.jar,/Users/atdog/Desktop/evo/framework/com.htc.android.easopen-solve.jar,/Users/atdog/Desktop/evo/framework/com.scalado.util.ScaladoUtil-solve.jar,/Users/atdog/Desktop/evo/framework/com.orange.authentication.simcard-solve.jar,/Users/atdog/Desktop/evo/framework/android.supl-solve.jar,/Users/atdog/Desktop/evo/framework/kafdex-solve.jar,../../CallRecorder/classes_dex2jar.jar";
 my ($APK_FILE_PATH) = @ARGV ;
 my $PACKAGE;
 my %APP_ENTRY_POINTS = (
@@ -141,26 +142,111 @@ sub parseMethodDotFile {
             #  need find the type of local vars
             ###
             my $statement = $2;
-            if($statement =~ m/(.*) :?= (.*)/) {
+            print "[1;35m$statement[0m\n";
+            if($statement =~ m/([^ ]*) :?= (.*)/) {
                 # r0 = this
                 my $localVar = $1;
                 my $varType = $2;
-                if($varType eq '@this') {
-                   $varType = "$entryPointClass";
-                }
-                # rx = @parameterX
-                elsif($varType =~ m/\@parameter(\d+)/) {
-                    my $numOfPara = $1;
-                    my ($parameter) = $methodName =~ m/.*\((.*)\)/;
-                    for my $i (1..$numOfPara) {
-                        $parameter =~ s/^[^,]*,(.*)$/$1/;
+                if(exists $methodCFG->{_local}->{$varType}) {
+                    $varType = $methodCFG->{_local}->{$varType};
+                } else {
+                    if($varType eq '@this') {
+                       $varType = "$entryPointClass";
                     }
-                    $parameter =~ s/^([^,]*),.*$/$1/;
-                    $varType = $parameter;
-                }
-                # rx = (Typecast) ry
-                elsif($varType =~ m/\((.*)\) .*/) {
-                    $varType = $1;
+                    # rx = @parameterX
+                    elsif($varType =~ m/\@parameter(\d+)/) {
+                        my $numOfPara = $1;
+                        my ($parameter) = $methodName =~ m/.*\((.*)\)/;
+                        for my $i (1..$numOfPara) {
+                            $parameter =~ s/^[^,]*,(.*)$/$1/;
+                        }
+                        $parameter =~ s/^([^,]*),.*$/$1/;
+                        $varType = $parameter;
+                    }
+                    # rx = (Typecast) ry
+                    elsif($varType =~ m/\((.*)\) .*/) {
+                        $varType = $1;
+                    }
+                    # rx = \"string\"
+                    elsif($varType =~ m/^\\"(.*)\\"$/) {
+                        $varType = "java.lang.String";
+                    }
+                    # rx = a.b.c    variable(or constant)
+                    elsif($varType =~ m/^([a-zA-Z0-9\.]*)\.([^.\(\)]*)$/) {
+                        my $className = $1;
+                        my $fieldName = $2;
+                        if(exists $methodCFG->{_local}->{$className}) {
+                            $className = $methodCFG->{_local}->{$className};
+                        }
+                        my $returnType = `java -jar typeChecker.jar -c '$className' -f $fieldName -e $JARPATH`;
+                        chomp($returnType);
+                        $varType = $returnType;
+                        print "-=-=-=-> className: $className\n";
+                        print "-=-=-=-> fieldName: $fieldName\n";
+                        print "-=-=-=-> returnType: $returnType\n";
+                    }
+                    # rx = new classname
+                    elsif($varType =~ m/^new ([a-zA-Z0-9\.]*)$/) {
+                        $varType = $1;
+                    }
+                    # rx = rx.()
+                    elsif($varType =~ m/(?:[^ ]* )?(.*)\.([^\.]*)\((.*)\)/) {
+                        my $parentType = $1;
+                        my $apiName = $2;
+                        my $parameter = $3;
+                        my $className;
+                        print "-=-=-=-> Local var: $parentType\n";
+                        if(exists $methodCFG->{_local}->{$parentType}) {
+                            $className = $methodCFG->{_local}->{$parentType};
+                        }
+                        # rx = classname.api()
+                        elsif($parentType =~ m/^[a-zA-Z0-9\.]*$/) {
+                                $className = $parentType;
+                        }
+                        # parse parameter
+                        my $parasToCheck = "";
+                        if(! $parameter eq "") {
+                            my @paras = split(/, /,$parameter);
+                            for my $para (@paras) {
+                                if(exists $methodCFG->{_local}->{$para}) {
+                                    $parasToCheck="$parasToCheck,$methodCFG->{_local}->{$para}";
+                                }
+                                elsif($para =~ m/^\d+$/) {
+                                    $parasToCheck="$parasToCheck,int";
+                                }
+                                elsif($para =~ m/^\\".*\\"$/) {
+                                    $parasToCheck="$parasToCheck,java.lang.String";
+                                }
+                                elsif($para eq "null") {
+                                    $parasToCheck="$parasToCheck,null";
+                                }
+                                # new classname
+                                elsif($para =~ m/class \\"(.*)\\"/) {
+                                    my $paraClass = $1;
+                                    $paraClass =~ s/\//\./g;
+                                    $parasToCheck="$parasToCheck,$paraClass";
+                                }
+                            }
+                        }
+                        print "-=-=-=-> className: $className\n";
+                        print "-=-=-=-> apiName: $apiName($parameter)\n";
+                        # run typeChecker.jar
+                        my $returnType;
+                        if($parasToCheck eq "") {
+                            $returnType = `java -jar typeChecker.jar -c '$className' -m $apiName -e $JARPATH`;
+                            print "-=-=-=-> returnType: $returnType";
+                        }
+                        else {
+                            $parasToCheck =~ s/^,(.*)$/$1/;
+                            print "-=-=-=-> parameter: $parasToCheck\n";
+                            $returnType = `java -jar typeChecker.jar -c '$className' -m $apiName -e $JARPATH -p $parasToCheck`;
+                            print "-=-=-=-> returnType: $returnType";
+                        }
+                        chomp ($returnType);
+                        if( $returnType !~ m/^NotFound-/) {
+                            $varType = $returnType;
+                        }
+                    }
                 }
                 $methodCFG->{_local}->{$localVar} = $varType;
             }
@@ -169,6 +255,7 @@ sub parseMethodDotFile {
         }
     }
     close $FILE;
+    print "==== data ====" , "\n";
     #$methodCFG->dumpGraph;
     print Dumper($methodCFG->{_local});
 }
