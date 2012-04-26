@@ -110,6 +110,10 @@ sub parseMethodDotFile {
     # parse the full fileName
     ###
     my $classPath = "$DIR_PATH/sootOutput/$entryPointClass";
+    if( not -d $classPath) {
+        print "-------------> [0;31m$classPath not found[0m\n";
+        return;
+    }
     my $methodName = `ls -1 '$classPath' | grep '$entryPointMethod('`;
     chomp($methodName);
     my $fileName = `grep -lR $entryPointMethod '$classPath/$methodName'`;
