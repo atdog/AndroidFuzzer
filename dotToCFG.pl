@@ -10,7 +10,9 @@ if($#ARGV != 0) {
     print "$0 path\n";
     exit;
 }
-my $JARPATH = "/Users/atdog/Desktop/evo/framework/core-solve.jar,/Users/atdog/Desktop/evo/framework/bouncycastle-solve.jar,/Users/atdog/Desktop/evo/framework/ext-solve.jar,/Users/atdog/Desktop/evo/framework/framework-solve.jar,/Users/atdog/Desktop/evo/framework/android.policy-solve.jar,/Users/atdog/Desktop/evo/framework/services-solve.jar,/Users/atdog/Desktop/evo/framework/core-junit-solve.jar,/Users/atdog/Desktop/evo/framework/com.htc.commonctrl-solve.jar,/Users/atdog/Desktop/evo/framework/com.htc.framework-solve.jar,/Users/atdog/Desktop/evo/framework/com.htc.android.pimlib-solve.jar,/Users/atdog/Desktop/evo/framework/com.htc.android.easopen-solve.jar,/Users/atdog/Desktop/evo/framework/com.scalado.util.ScaladoUtil-solve.jar,/Users/atdog/Desktop/evo/framework/com.orange.authentication.simcard-solve.jar,/Users/atdog/Desktop/evo/framework/android.supl-solve.jar,/Users/atdog/Desktop/evo/framework/kafdex-solve.jar,../../CallRecorder/classes_dex2jar.jar";
+my $RECORD_MODE = 0;
+my $ANDROID_PATH = "/System/Library/Frameworks/JavaVM.framework/Classes/classes.jar:/Users/atdog/Desktop/myWork/tools/lib/android-4.0.3.jar";
+my $JARPATH = "/Users/atdog/Desktop/myWork/tools/analyzeAPICall/framework/core/classes_dex2jar.jar:/Users/atdog/Desktop/myWork/tools/analyzeAPICall/framework/bouncycastle/classes_dex2jar.jar:/Users/atdog/Desktop/myWork/tools/analyzeAPICall/framework/ext/classes_dex2jar.jar:/Users/atdog/Desktop/myWork/tools/analyzeAPICall/framework/framework/classes_dex2jar.jar:/Users/atdog/Desktop/myWork/tools/analyzeAPICall/framework/android.policy/classes_dex2jar.jar:/Users/atdog/Desktop/myWork/tools/analyzeAPICall/framework/services/classes_dex2jar.jar:/Users/atdog/Desktop/myWork/tools/analyzeAPICall/framework/core-junit/classes_dex2jar.jar:/Users/atdog/Desktop/myWork/tools/analyzeAPICall/framework/com.htc.commonctrl/classes_dex2jar.jar:/Users/atdog/Desktop/myWork/tools/analyzeAPICall/framework/com.htc.framework/classes_dex2jar.jar:/Users/atdog/Desktop/myWork/tools/analyzeAPICall/framework/com.htc.android.pimlib/classes_dex2jar.jar:/Users/atdog/Desktop/myWork/tools/analyzeAPICall/framework/com.htc.android.easopen/classes_dex2jar.jar:/Users/atdog/Desktop/myWork/tools/analyzeAPICall/framework/com.scalado.util.ScaladoUtil/classes_dex2jar.jar:/Users/atdog/Desktop/myWork/tools/analyzeAPICall/framework/com.orange.authentication.simcard/classes_dex2jar.jar:/Users/atdog/Desktop/myWork/tools/analyzeAPICall/framework/android.supl/classes_dex2jar.jar:/Users/atdog/Desktop/myWork/tools/analyzeAPICall/framework/kafdex/classes_dex2jar.jar";
 my ($APK_FILE_PATH) = @ARGV ;
 my $PACKAGE;
 my %APP_ENTRY_POINTS = (
@@ -53,11 +55,16 @@ sub parseAndroidManifest {
             my $componentSet = $applications->{$component};
             my $reference = ref($componentSet);
             if($reference eq 'HASH') {
-                push(@{$APP_ENTRY_POINTS{$component}}, {classname=>$componentSet->{'android:name'}});
+                if ($componentSet->{'android:name'} =~ m/^\..*$/) {
+                    push(@{$APP_ENTRY_POINTS{$component}}, {classname=>$componentSet->{'android:name'}});
+                }
+                else {
+                    print "* ignore some component: $componentSet->{'android:name'}\n";
+                }
                 # record provider name
-                #if($component eq "provider") {
-                #    recordProviderNameToFile($componentSet->{'android:name'});
-                #}
+                if($component eq "provider") {
+                    recordProviderNameToFile($componentSet->{'android:name'},$PACKAGE, $componentSet->{'android:authorities'});
+                }
             }
             elsif($reference eq 'ARRAY'){
                 ###
@@ -66,11 +73,16 @@ sub parseAndroidManifest {
                 my @cSet = @{$componentSet};
                 for my $i (0..@cSet-1) {
                     my $eachComponent = $cSet[$i];
-                    push(@{$APP_ENTRY_POINTS{$component}}, {classname=>$eachComponent->{'android:name'}});
+                    if( $eachComponent->{'android:name'} =~ m/^\..*$/) {
+                        push(@{$APP_ENTRY_POINTS{$component}}, {classname=>$eachComponent->{'android:name'}}) ;
+                    }
+                    else {
+                        print "* ignore some component: $eachComponent->{'android:name'}\n";
+                    }
                     # record provider name
-                    #if($component eq "provider") {
-                    #    recordProviderNameToFile($eachComponent->{'android:name'});
-                    #}
+                    if($component eq "provider") {
+                        recordProviderNameToFile($eachComponent->{'android:name'},$PACKAGE, $eachComponent->{'android:authorities'});
+                    }
                 }
             }
         }
@@ -82,11 +94,16 @@ sub recordProviderNameToFile {
     ###
     #  preload app provider need to be recorded
     ###
-    my ($providerName) = @_;
+    my ($providerName, $packageName, $authorities) = @_;
+    if($RECORD_MODE == 0) {
+        return;
+    }
     open (my $providerNameFile,">> providerNameList.txt");
     my $checkData = `grep $providerName providerNameList.txt`;
     if ( ! ($checkData =~ m/^$providerName$/) ) {
-        print $providerNameFile "$providerName\n";
+        print $providerNameFile "Provider: $providerName\n";
+        print $providerNameFile "    Package:     $packageName\n";
+        print $providerNameFile "    Authorities: $authorities\n";
     }
     close $providerNameFile;
 }
@@ -95,8 +112,9 @@ sub parseDotFileFromEntryPoint {
     for my $comName (keys %APP_ENTRY_POINTS) {
         for my $i (0..@{$APP_ENTRY_POINTS{$comName}}-1) {
             my $entryPoint = $APP_ENTRY_POINTS{$comName}[$i]->{classname};
-            $entryPoint = "$PACKAGE.$entryPoint";
-            $entryPoint =~ s/\.\./\./g;
+            if($entryPoint =~ m/^\..*$/ ) {
+                $entryPoint = "$PACKAGE$entryPoint";
+            }
             for my $j (0..@{$ENTRY_POINT{$comName}}-1) {
                 parseMethodDotFile($entryPoint, $ENTRY_POINT{$comName}[$j]);
             }
@@ -141,12 +159,21 @@ sub parseMethodDotFile {
                 push(@{$methodCFG->{_root}->{_nextNode}}, $nodeArray[$1]);
                 push(@{$node->{_prevNode}}, $methodCFG->{_root});
             }
+            my $statement = $2;
+            print "[1;35m$statement[0m\n";
+            ###
+            #  find the invokation to the next method CFG
+            ###
+            if($statement =~ m/^(?:specialinvoke )?([^ ]*\(.*\))$/){ 
+                my $invokation = $1;
+                if($invokation =~ m/^(?:new )?([^\.]*)\.([^\.]*\(.*\))$/) {
+                    print "-=-=-=-> invokation: $methodCFG->{_local}->{$1}.$2\n";
+                }
+            }
             ###
             #  need find the type of local vars
             ###
-            my $statement = $2;
-            print "[1;35m$statement[0m\n";
-            if($statement =~ m/([^ ]*) :?= (.*)/) {
+            elsif($statement =~ m/([^ ]*) :?= (.*)/) {
                 # r0 = this
                 my $localVar = $1;
                 my $varType = $2;
@@ -155,6 +182,10 @@ sub parseMethodDotFile {
                 } else {
                     if($varType eq '@this') {
                        $varType = "$entryPointClass";
+                    }
+                    # rx = @caughtexception
+                    elsif($varType =~ m/\@caughtexception/) {
+                        $varType = "java.lang.Throwable";
                     }
                     # rx = @parameterX
                     elsif($varType =~ m/\@parameter(\d+)/) {
@@ -181,7 +212,7 @@ sub parseMethodDotFile {
                         if(exists $methodCFG->{_local}->{$className}) {
                             $className = $methodCFG->{_local}->{$className};
                         }
-                        my $returnType = `java -jar tools/typeChecker.jar -c '$className' -f $fieldName -e $JARPATH`;
+                        my $returnType = fieldChecker($className, $fieldName);
                         chomp($returnType);
                         $varType = $returnType;
                         print "-=-=-=-> className: $className\n";
@@ -236,13 +267,13 @@ sub parseMethodDotFile {
                         # run typeChecker.jar
                         my $returnType;
                         if($parasToCheck eq "") {
-                            $returnType = `java -jar tools/typeChecker.jar -c '$className' -m $apiName -e $JARPATH`;
+                            $returnType = methodChecker($className, $apiName);
                             print "-=-=-=-> returnType: $returnType";
                         }
                         else {
                             $parasToCheck =~ s/^,(.*)$/$1/;
                             print "-=-=-=-> parameter: $parasToCheck\n";
-                            $returnType = `java -jar tools/typeChecker.jar -c '$className' -m $apiName -e $JARPATH -p $parasToCheck`;
+                            $returnType = methodChecker($className, $apiName, $parasToCheck);
                             print "-=-=-=-> returnType: $returnType";
                         }
                         chomp ($returnType);
@@ -263,6 +294,32 @@ sub parseMethodDotFile {
     print Dumper($methodCFG->{_local});
 }
 
+sub methodChecker{
+    my($c,$m,$p) = @_;
+    my $return;
+    if(defined $p) {
+        $return = `java -jar tools/typeChecker.jar -c '$c' -m $m -e $JARPATH -p $p`;
+    } 
+    else {
+        $return =  `java -jar tools/typeChecker.jar -c '$c' -m $m -e $JARPATH `;
+    }
+    if($return =~ m/NotFound-JNI/ && defined $p) {
+        $return = `java -jar tools/typeChecker.jar -c '$c' -m $m -e $ANDROID_PATH -p $p`;
+    }
+    elsif($return =~ m/NotFound-JNI/ && not defined $p){
+        $return = `java -jar tools/typeChecker.jar -c '$c' -m $m -e $ANDROID_PATH`;
+    }
+    return $return;
+}
+sub fieldChecker{
+    my($c,$f) = @_;
+    my $return;
+    $return = `java -jar tools/typeChecker.jar -c '$c' -f $f -e $JARPATH`;
+    if($return =~ m/NotFound-JNI/) {
+        $return = `java -jar tools/typeChecker.jar -c '$c' -f $f -e $ANDROID_PATH`;
+    }
+    return $return;
+}
 sub Main{
     ######
     # use analyzeapk to retrieve the source file and java bytecode cfg dot file
@@ -272,6 +329,8 @@ sub Main{
     ######
     # parse AndroidManifest to find entry point for each component
     ######
+    $JARPATH = "$JARPATH:$DIR_PATH/classes_dex2jar.jar";
+    $ANDROID_PATH = "$ANDROID_PATH:$DIR_PATH/classes_dex2jar.jar";
     parseAndroidManifest("$DIR_PATH/AndroidManifest-real.xml");
 
     ######
