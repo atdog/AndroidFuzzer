@@ -22,10 +22,22 @@ my %APP_ENTRY_POINTS = (
     provider => [],
 );
 my %ENTRY_POINT = (
-    activity => ["onCreate"],
-    service => ["onStartCommand"],
-    receiver => ["onReceive"],
-    provider => ["onUpdate"]
+    activity => [{
+            name => "onCreate",
+            paras => "android.os.Bundle"
+        }],
+    service => [{
+            name => "onStartCommand",
+            paras => "android.content.Intent,int,int"
+        }],
+    receiver => [{
+            name => "onReceive",
+            paras => "android.content.Context,android.content.Intent" 
+        }],
+    provider => [{
+            name => "onCreate",
+            paras => ""
+        }]
 );
 my @METHOD_CFG;
 my $DIR_PATH = $APK_FILE_PATH;
@@ -116,14 +128,13 @@ sub parseDotFileFromEntryPoint {
                 $entryPoint = "$PACKAGE$entryPoint";
             }
             for my $j (0..@{$ENTRY_POINT{$comName}}-1) {
-                parseMethodDotFile($entryPoint, $ENTRY_POINT{$comName}[$j]);
+                parseMethodDotFile($entryPoint, $ENTRY_POINT{$comName}[$j]->{name},$ENTRY_POINT{$comName}[$j]->{paras});
             }
         }
     }
 }
 sub parseMethodDotFile {
-    my ($entryPointClass, $entryPointMethod) = @_;
-    
+    my ($entryPointClass, $entryPointMethod, $entryPointMethodParas) = @_;
     ###
     # parse the full fileName
     ###
@@ -132,11 +143,7 @@ sub parseMethodDotFile {
         print "-------------> [0;31m$classPath not found[0m\n";
         return;
     }
-    my $methodName = `ls -1 '$classPath' | grep '$entryPointMethod('`;
-    chomp($methodName);
-    my $fileName = `grep -lR $entryPointMethod '$classPath/$methodName'`;
-    chomp($fileName);
-    $fileName =~ s/\r+//g;
+    my $fileName = `./getMethodDot.sh '$classPath' '$entryPointMethod' '$entryPointMethodParas'`;
     my $methodCFG;
     my @nodeArray;
     print $fileName, "\n";
@@ -146,7 +153,7 @@ sub parseMethodDotFile {
             my $node = new ControlFlowNode(-1,$1);
             $methodCFG->{_root} = $node;
             push(@{$node->{_prevNode}}, $node);
-            $methodCFG = new ControlFlowGraph($methodName,$node);
+            $methodCFG = new ControlFlowGraph($fileName,$node);
         }
         elsif($_ =~ m/.*\"(\d+)\"->\"(\d+)\".*/) {
             push(@{$nodeArray[$1]->{_nextNode}},$nodeArray[$2]);
@@ -166,8 +173,23 @@ sub parseMethodDotFile {
             ###
             if($statement =~ m/^(?:specialinvoke )?([^ ]*\(.*\))$/){ 
                 my $invokation = $1;
-                if($invokation =~ m/^(?:new )?([^\.]*)\.([^\.]*\(.*\))$/) {
-                    print "-=-=-=-> invokation: $methodCFG->{_local}->{$1}.$2\n";
+                if($invokation =~ m/^(?:new )?([^\.]*)\.([^\.]*)\((.*)\)$/) {
+                    my $parasOfInvokation = parseParas($methodCFG,$3);
+                    my $subMethodFile = "";
+                    if(exists $methodCFG->{_local}->{$1}) {
+                        print "-=-=-=-> invokation: $methodCFG->{_local}->{$1}.$2($parasOfInvokation)\n";
+                        $subMethodFile = `./getMethodDot.sh '$DIR_PATH/sootOutput/$methodCFG->{_local}->{$1}' '$2' '$parasOfInvokation'`;
+                    }
+                    else {
+                        print "-=-=-=-> invokation: $1.$2($parasOfInvokation)\n";
+                        $subMethodFile = `./getMethodDot.sh '$DIR_PATH/sootOutput/$1' '$2' '$parasOfInvokation'`;
+                    }
+                    print "-=-=-=-> invoke file: $subMethodFile\n";
+                    if($subMethodFile !~ /^ERROR$/) {
+                        ####
+                        # create sub method CFG
+                        ####
+                    }
                 }
             }
             ###
@@ -190,7 +212,7 @@ sub parseMethodDotFile {
                     # rx = @parameterX
                     elsif($varType =~ m/\@parameter(\d+)/) {
                         my $numOfPara = $1;
-                        my ($parameter) = $methodName =~ m/.*\((.*)\)/;
+                        my ($parameter) = $fileName =~ m/.*\((.*)\)/;
                         for my $i (1..$numOfPara) {
                             $parameter =~ s/^[^,]*,(.*)$/$1/;
                         }
@@ -220,7 +242,7 @@ sub parseMethodDotFile {
                         print "-=-=-=-> returnType: $returnType\n";
                     }
                     # rx = new classname
-                    elsif($varType =~ m/^new ([a-zA-Z0-9\.]*)$/) {
+                    elsif($varType =~ m/^new ([a-zA-Z0-9\.\$]*)$/) {
                         $varType = $1;
                     }
                     # rx = rx.()
@@ -238,30 +260,7 @@ sub parseMethodDotFile {
                                 $className = $parentType;
                         }
                         # parse parameter
-                        my $parasToCheck = "";
-                        if(! $parameter eq "") {
-                            my @paras = split(/, /,$parameter);
-                            for my $para (@paras) {
-                                if(exists $methodCFG->{_local}->{$para}) {
-                                    $parasToCheck="$parasToCheck,$methodCFG->{_local}->{$para}";
-                                }
-                                elsif($para =~ m/^\d+$/) {
-                                    $parasToCheck="$parasToCheck,int";
-                                }
-                                elsif($para =~ m/^\\".*\\"$/) {
-                                    $parasToCheck="$parasToCheck,java.lang.String";
-                                }
-                                elsif($para eq "null") {
-                                    $parasToCheck="$parasToCheck,null";
-                                }
-                                # new classname
-                                elsif($para =~ m/class \\"(.*)\\"/) {
-                                    my $paraClass = $1;
-                                    $paraClass =~ s/\//\./g;
-                                    $parasToCheck="$parasToCheck,$paraClass";
-                                }
-                            }
-                        }
+                        my $parasToCheck = parseParas($methodCFG,$parameter);
                         print "-=-=-=-> className: $className\n";
                         print "-=-=-=-> apiName: $apiName($parameter)\n";
                         # run typeChecker.jar
@@ -271,7 +270,6 @@ sub parseMethodDotFile {
                             print "-=-=-=-> returnType: $returnType";
                         }
                         else {
-                            $parasToCheck =~ s/^,(.*)$/$1/;
                             print "-=-=-=-> parameter: $parasToCheck\n";
                             $returnType = methodChecker($className, $apiName, $parasToCheck);
                             print "-=-=-=-> returnType: $returnType";
@@ -292,6 +290,36 @@ sub parseMethodDotFile {
     print "==== data ====" , "\n";
     #$methodCFG->dumpGraph;
     print Dumper($methodCFG->{_local});
+}
+
+sub parseParas{
+    my ($methodCFG, $parameter) = @_;
+    my $parasToCheck = "";
+    if(! $parameter eq "") {
+        my @paras = split(/, /,$parameter);
+        for my $para (@paras) {
+            if(exists $methodCFG->{_local}->{$para}) {
+                $parasToCheck="$parasToCheck,$methodCFG->{_local}->{$para}";
+            }
+            elsif($para =~ m/^\d+$/) {
+                $parasToCheck="$parasToCheck,int";
+            }
+            elsif($para =~ m/^\\".*\\"$/) {
+                $parasToCheck="$parasToCheck,java.lang.String";
+            }
+            elsif($para eq "null") {
+                $parasToCheck="$parasToCheck,null";
+            }
+            # new classname
+            elsif($para =~ m/class \\"(.*)\\"/) {
+                my $paraClass = $1;
+                $paraClass =~ s/\//\./g;
+                $parasToCheck="$parasToCheck,$paraClass";
+            }
+        }
+        $parasToCheck =~ s/^,(.*)$/$1/;
+    }
+    return $parasToCheck;
 }
 
 sub methodChecker{
