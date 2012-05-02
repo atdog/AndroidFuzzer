@@ -127,33 +127,35 @@ sub parseDotFileFromEntryPoint {
             if($entryPoint =~ m/^\..*$/ ) {
                 $entryPoint = "$PACKAGE$entryPoint";
             }
+            my $fileName;
+            my $classPath;
             for my $j (0..@{$ENTRY_POINT{$comName}}-1) {
-                parseMethodDotFile($entryPoint, $ENTRY_POINT{$comName}[$j]->{name},$ENTRY_POINT{$comName}[$j]->{paras});
+                $classPath = "$DIR_PATH/sootOutput/$entryPoint";
+                if( not -d $classPath) {
+                    print "-------------> [0;31m$classPath not found[0m\n";
+                    return;
+                }
+                $fileName = `./getMethodDot.pl '$classPath' '$ENTRY_POINT{$comName}[$j]->{name}' '$ENTRY_POINT{$comName}[$j]->{paras}' '$JARPATH'`;
+                parseMethodDotFile($entryPoint, $ENTRY_POINT{$comName}[$j]->{name},$ENTRY_POINT{$comName}[$j]->{paras}, $fileName);
             }
         }
     }
 }
 sub parseMethodDotFile {
-    my ($entryPointClass, $entryPointMethod, $entryPointMethodParas) = @_;
+    my ($entryPointClass, $entryPointMethod, $entryPointMethodParas, $dotFileName) = @_;
     ###
     # parse the full fileName
     ###
-    my $classPath = "$DIR_PATH/sootOutput/$entryPointClass";
-    if( not -d $classPath) {
-        print "-------------> [0;31m$classPath not found[0m\n";
-        return;
-    }
-    my $fileName = `./getMethodDot.sh '$classPath' '$entryPointMethod' '$entryPointMethodParas'`;
     my $methodCFG;
     my @nodeArray;
-    print $fileName, "\n";
-    open(my $FILE, "< $fileName");
+    print $dotFileName, "\n";
+    open(my $FILE, "< $dotFileName");
     while(<$FILE>) {
         if($_ =~ m/label="(.*)";/) {
             my $node = new ControlFlowNode(-1,$1);
             $methodCFG->{_root} = $node;
             push(@{$node->{_prevNode}}, $node);
-            $methodCFG = new ControlFlowGraph($fileName,$node);
+            $methodCFG = new ControlFlowGraph($dotFileName,$node);
         }
         elsif($_ =~ m/.*\"(\d+)\"->\"(\d+)\".*/) {
             push(@{$nodeArray[$1]->{_nextNode}},$nodeArray[$2]);
@@ -178,11 +180,11 @@ sub parseMethodDotFile {
                     my $subMethodFile = "";
                     if(exists $methodCFG->{_local}->{$1}) {
                         print "-=-=-=-> invokation: $methodCFG->{_local}->{$1}.$2($parasOfInvokation)\n";
-                        $subMethodFile = `./getMethodDot.sh '$DIR_PATH/sootOutput/$methodCFG->{_local}->{$1}' '$2' '$parasOfInvokation'`;
+                        $subMethodFile = `./getMethodDot.pl '$DIR_PATH/sootOutput/$methodCFG->{_local}->{$1}' '$2' '$parasOfInvokation' '$JARPATH'`;
                     }
                     else {
                         print "-=-=-=-> invokation: $1.$2($parasOfInvokation)\n";
-                        $subMethodFile = `./getMethodDot.sh '$DIR_PATH/sootOutput/$1' '$2' '$parasOfInvokation'`;
+                        $subMethodFile = `./getMethodDot.pl '$DIR_PATH/sootOutput/$1' '$2' '$parasOfInvokation' '$JARPATH'`;
                     }
                     print "-=-=-=-> invoke file: $subMethodFile\n";
                     if($subMethodFile !~ /^ERROR$/) {
@@ -212,7 +214,7 @@ sub parseMethodDotFile {
                     # rx = @parameterX
                     elsif($varType =~ m/\@parameter(\d+)/) {
                         my $numOfPara = $1;
-                        my ($parameter) = $fileName =~ m/.*\((.*)\)/;
+                        my ($parameter) = $dotFileName =~ m/.*\((.*)\)/;
                         for my $i (1..$numOfPara) {
                             $parameter =~ s/^[^,]*,(.*)$/$1/;
                         }
