@@ -8,6 +8,7 @@ sub new{
         _methodName => shift,
         _local => {},
         _root => shift,
+        _prevNode => []
     };
     bless $self, $class;
     return $self;

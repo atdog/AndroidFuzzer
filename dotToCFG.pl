@@ -29,6 +29,9 @@ my %ENTRY_POINT = (
     service => [{
             name => "onStartCommand",
             paras => "android.content.Intent,int,int"
+        },{
+            name => "onBind",
+            paras => "android.content.Intent"
         }],
     receiver => [{
             name => "onReceive",
@@ -39,7 +42,7 @@ my %ENTRY_POINT = (
             paras => ""
         }]
 );
-my @METHOD_CFG;
+my %ALL_METHOD_CFG = ();
 my $DIR_PATH = $APK_FILE_PATH;
 $DIR_PATH =~ s/\.apk//;
 
@@ -67,12 +70,7 @@ sub parseAndroidManifest {
             my $componentSet = $applications->{$component};
             my $reference = ref($componentSet);
             if($reference eq 'HASH') {
-                if ($componentSet->{'android:name'} =~ m/^\..*$/) {
-                    push(@{$APP_ENTRY_POINTS{$component}}, {classname=>$componentSet->{'android:name'}});
-                }
-                else {
-                    print "* ignore some component: $componentSet->{'android:name'}\n";
-                }
+                push(@{$APP_ENTRY_POINTS{$component}}, {classname=>$componentSet->{'android:name'}});
                 # record provider name
                 if($component eq "provider") {
                     recordProviderNameToFile($componentSet->{'android:name'},$PACKAGE, $componentSet->{'android:authorities'});
@@ -85,12 +83,7 @@ sub parseAndroidManifest {
                 my @cSet = @{$componentSet};
                 for my $i (0..@cSet-1) {
                     my $eachComponent = $cSet[$i];
-                    if( $eachComponent->{'android:name'} =~ m/^\..*$/) {
-                        push(@{$APP_ENTRY_POINTS{$component}}, {classname=>$eachComponent->{'android:name'}}) ;
-                    }
-                    else {
-                        print "* ignore some component: $eachComponent->{'android:name'}\n";
-                    }
+                    push(@{$APP_ENTRY_POINTS{$component}}, {classname=>$eachComponent->{'android:name'}}) ;
                     # record provider name
                     if($component eq "provider") {
                         recordProviderNameToFile($eachComponent->{'android:name'},$PACKAGE, $eachComponent->{'android:authorities'});
@@ -127,16 +120,24 @@ sub parseDotFileFromEntryPoint {
             if($entryPoint =~ m/^\..*$/ ) {
                 $entryPoint = "$PACKAGE$entryPoint";
             }
+            elsif($entryPoint =~ m/^[^\.]*$/) {
+                $entryPoint = "$PACKAGE.$entryPoint";
+            }
             my $fileName;
             my $classPath;
             for my $j (0..@{$ENTRY_POINT{$comName}}-1) {
                 $classPath = "$DIR_PATH/sootOutput/$entryPoint";
                 if( not -d $classPath) {
-                    print "-------------> [0;31m$classPath not found[0m\n";
+                    print "-------------> [0;31m$classPath.$entryPoint not found[0m\n";
                     return;
                 }
                 $fileName = `./getMethodDot.pl '$classPath' '$ENTRY_POINT{$comName}[$j]->{name}' '$ENTRY_POINT{$comName}[$j]->{paras}' '$JARPATH'`;
-                parseMethodDotFile($entryPoint, $ENTRY_POINT{$comName}[$j]->{name},$ENTRY_POINT{$comName}[$j]->{paras}, $fileName);
+                if($fileName !~ m/ERROR/) {
+                    parseMethodDotFile($entryPoint, $ENTRY_POINT{$comName}[$j]->{name},$ENTRY_POINT{$comName}[$j]->{paras}, $fileName);
+                }
+                else {
+                    print "-------------> [0;31m$classPath $ENTRY_POINT{$comName}[$j]->{name} not found[0m\n";
+                }
             }
         }
     }
@@ -156,6 +157,7 @@ sub parseMethodDotFile {
             $methodCFG->{_root} = $node;
             push(@{$node->{_prevNode}}, $node);
             $methodCFG = new ControlFlowGraph($dotFileName,$node);
+            $ALL_METHOD_CFG{$dotFileName} = $methodCFG;
         }
         elsif($_ =~ m/.*\"(\d+)\"->\"(\d+)\".*/) {
             push(@{$nodeArray[$1]->{_nextNode}},$nodeArray[$2]);
@@ -163,7 +165,8 @@ sub parseMethodDotFile {
         }
         elsif($_ =~ m/.*\"(\d+)\" \[.*label=\"(.*)\",\];/) {
             my $node = new ControlFlowNode($1,$2);
-            $nodeArray[$1]=$node;
+            my $nodeNum = $1;
+            $nodeArray[$nodeNum]=$node;
             if($1 == 0) {
                 push(@{$methodCFG->{_root}->{_nextNode}}, $nodeArray[$1]);
                 push(@{$node->{_prevNode}}, $methodCFG->{_root});
@@ -178,19 +181,30 @@ sub parseMethodDotFile {
                 if($invokation =~ m/^(?:new )?([^\.]*)\.([^\.]*)\((.*)\)$/) {
                     my $parasOfInvokation = parseParas($methodCFG,$3);
                     my $subMethodFile = "";
+                    my $classNameOfInvokation;
+                    my $methodNameOfInvokation = $2;
                     if(exists $methodCFG->{_local}->{$1}) {
-                        print "-=-=-=-> invokation: $methodCFG->{_local}->{$1}.$2($parasOfInvokation)\n";
-                        $subMethodFile = `./getMethodDot.pl '$DIR_PATH/sootOutput/$methodCFG->{_local}->{$1}' '$2' '$parasOfInvokation' '$JARPATH'`;
+                        $classNameOfInvokation = $methodCFG->{_local}->{$1};
                     }
                     else {
-                        print "-=-=-=-> invokation: $1.$2($parasOfInvokation)\n";
-                        $subMethodFile = `./getMethodDot.pl '$DIR_PATH/sootOutput/$1' '$2' '$parasOfInvokation' '$JARPATH'`;
+                        $classNameOfInvokation = $1;
                     }
-                    print "-=-=-=-> invoke file: $subMethodFile\n";
-                    if($subMethodFile !~ /^ERROR$/) {
-                        ####
-                        # create sub method CFG
-                        ####
+                    print "-=-=-=-> invokation: $classNameOfInvokation.$methodNameOfInvokation($parasOfInvokation)\n";
+                    if($classNameOfInvokation =~ m/$PACKAGE/) {
+                        $subMethodFile = `./getMethodDot.pl '$DIR_PATH/sootOutput/$classNameOfInvokation' '$methodNameOfInvokation' '$parasOfInvokation' '$JARPATH'`;
+                        print "-=-=-=-> invoke file: $subMethodFile\n";
+                        if($subMethodFile !~ /^ERROR$/) {
+                            ####
+                            # create sub method CFG
+                            ####
+                            parseMethodDotFile($classNameOfInvokation, $methodNameOfInvokation, $parasOfInvokation, $subMethodFile) if not exists $ALL_METHOD_CFG{$subMethodFile};
+                            push(@{$ALL_METHOD_CFG{$subMethodFile}->{_prevNode}}, $nodeArray[$nodeNum]);
+                            $nodeArray[$nodeNum]->{_subMethod} = $ALL_METHOD_CFG{$subMethodFile};
+                            print "-=-=-=-> subMethod parsing done.\n";
+                        }
+                    }
+                    else {
+                        print "-=-=-=-> Dot file not exist.\n";
                     }
                 }
             }
@@ -220,6 +234,10 @@ sub parseMethodDotFile {
                         }
                         $parameter =~ s/^([^,]*),.*$/$1/;
                         $varType = $parameter;
+                    }
+                    # rx = lengthof rx
+                    elsif($varType =~ m/^lengthof .*$/) {
+                        $varType = "int";
                     }
                     # rx = (Typecast) ry
                     elsif($varType =~ m/\((.*)\) .*/) {
