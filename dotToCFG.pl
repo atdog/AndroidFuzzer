@@ -21,6 +21,16 @@ my %APP_ENTRY_POINTS = (
     receiver => [],
     provider => [],
 );
+my %PRIMITIVE_TYPE = (
+    int => "I",
+    byte => "B",
+    short => "S",
+    long => "L",
+    float => "F",
+    double => "D",
+    boolean => "Z",
+    char => "C"
+);
 my %ENTRY_POINT = (
     activity => [{
             name => "onCreate",
@@ -32,6 +42,9 @@ my %ENTRY_POINT = (
         },{
             name => "onBind",
             paras => "android.content.Intent"
+        },{
+            name => "onCreate",
+            paras => ""
         }],
     receiver => [{
             name => "onReceive",
@@ -210,8 +223,9 @@ sub parseMethodDotFile {
             }
             ###
             #  need find the type of local vars
+            #  need to discard array assignment
             ###
-            elsif($statement =~ m/([^ ]*) :?= (.*)/) {
+            elsif($statement =~ m/([^\[\] ]*) :?= (.*)/) {
                 # r0 = this
                 my $localVar = $1;
                 my $varType = $2;
@@ -233,7 +247,72 @@ sub parseMethodDotFile {
                             $parameter =~ s/^[^,]*,(.*)$/$1/;
                         }
                         $parameter =~ s/^([^,]*),.*$/$1/;
-                        $varType = $parameter;
+                        # int[]...
+                        if($parameter =~ m/^.*(\[\])+$/) {
+                            my $dimension = 0;
+                            my $array = $1;
+                            while($array =~ m/\[\]/) {
+                                $dimension++;
+                                $array =~ s/^\[\](.*)$/$1/;
+                            }
+                            $varType = "";
+                            for my $i (1..$dimension) {
+                                $varType = "${varType}[";
+                            }
+                            if($parameter =~ m/(int|byte|short|long|float|double|boolean|char)(?:\[\])+/) {
+                                $varType = "$PRIMITIVE_TYPE{$varType}$1";
+                            }
+                            # a.b.c[]...
+                            elsif($parameter =~ m/([a-zA-Z\.0-9]*)(?:\[\])+/) {
+                                $varType = "${varType}L$1;";
+                            }
+                        }
+                        # normal parameter
+                        else{ 
+                            $varType = $parameter;
+                        }
+                    }
+                    # rx = newarray (java.lang.String)[2]
+                    elsif($varType =~ m/^newarray \((.*)\)\[.*\]$/) {
+                        my $type = $1;
+                        if($type =~ m/\./) {
+                            $varType = "[L$type;";
+                        }
+                        else {
+                            $varType = "[$type";
+                        }
+                    }
+                    # rx = rx[]
+                    elsif($varType =~ m/(.*)\[.*\]/) {
+                        if(exists $methodCFG->{_local}->{$1}) {
+                            my $arrayType = $methodCFG->{_local}->{$1};
+                            # [Lcom.android.htcdialer.util.SpeedDialUtils$SpeedDialEntry;'
+                            if($arrayType =~ m/^\[L?(.*);?$/) {
+                                $varType = $1;
+                            }
+                            else {
+                                $varType = "ArrayError";
+                            }
+                        }
+                        else {
+                            $varType = $1;
+                        }
+                    }
+                    # rx = 0L 
+                    elsif($varType =~ m/^-?\d+L$/) {
+                        $varType = "long"
+                    }
+                    # rx = 1  or  rx = -1
+                    elsif($varType =~ m/^-?\d+$/) {
+                        $varType = "int";
+                    }
+                    # rx = + - 
+                    elsif($varType =~ m/^[^\(\)]* [+-\\*\/] [^\(\)]*$/) {
+                        $varType = "int";
+                    }
+                    # r1 instanceof a.b.c
+                    elsif($varType =~ m/.* instanceof .*/) {
+                        $varType = "boolean";
                     }
                     # rx = lengthof rx
                     elsif($varType =~ m/^lengthof .*$/) {
@@ -247,8 +326,12 @@ sub parseMethodDotFile {
                     elsif($varType =~ m/^\\"(.*)\\"$/) {
                         $varType = "java.lang.String";
                     }
+                    # rx = new classname
+                    elsif($varType =~ m/^new ([a-zA-Z0-9\.\$]*)$/) {
+                        $varType = $1;
+                    }
                     # rx = a.b.c    variable(or constant)
-                    elsif($varType =~ m/^([a-zA-Z0-9\.]*)\.([^.\(\)]*)$/) {
+                    elsif($varType =~ m/^(.*)\.([^.\(\)]*)$/) {
                         my $className = $1;
                         my $fieldName = $2;
                         if(exists $methodCFG->{_local}->{$className}) {
@@ -260,10 +343,6 @@ sub parseMethodDotFile {
                         print "-=-=-=-> className: $className\n";
                         print "-=-=-=-> fieldName: $fieldName\n";
                         print "-=-=-=-> returnType: $returnType\n";
-                    }
-                    # rx = new classname
-                    elsif($varType =~ m/^new ([a-zA-Z0-9\.\$]*)$/) {
-                        $varType = $1;
                     }
                     # rx = rx.()
                     elsif($varType =~ m/(?:[^ ]* )?(.*)\.([^\.]*)\((.*)\)/) {
@@ -315,14 +394,17 @@ sub parseMethodDotFile {
 sub parseParas{
     my ($methodCFG, $parameter) = @_;
     my $parasToCheck = "";
-    if(! $parameter eq "") {
+    if($parameter ne "") {
         my @paras = split(/, /,$parameter);
         for my $para (@paras) {
             if(exists $methodCFG->{_local}->{$para}) {
                 $parasToCheck="$parasToCheck,$methodCFG->{_local}->{$para}";
             }
-            elsif($para =~ m/^\d+$/) {
+            elsif($para =~ m/^-?\d+$/) {
                 $parasToCheck="$parasToCheck,int";
+            }
+            elsif($para =~ m/^-?\d+L$/) {
+                $parasToCheck="$parasToCheck,long";
             }
             elsif($para =~ m/^\\".*\\"$/) {
                 $parasToCheck="$parasToCheck,java.lang.String";
@@ -346,25 +428,25 @@ sub methodChecker{
     my($c,$m,$p) = @_;
     my $return;
     if(defined $p) {
-        $return = `java -jar tools/typeChecker.jar -c '$c' -m $m -e $JARPATH -p $p`;
+        $return = `java -jar tools/typeChecker.jar -c '$c' -m '$m' -e '$JARPATH' -p '$p'`;
     } 
     else {
-        $return =  `java -jar tools/typeChecker.jar -c '$c' -m $m -e $JARPATH `;
+        $return =  `java -jar tools/typeChecker.jar -c '$c' -m '$m' -e '$JARPATH' `;
     }
     if($return =~ m/NotFound-JNI/ && defined $p) {
-        $return = `java -jar tools/typeChecker.jar -c '$c' -m $m -e $ANDROID_PATH -p $p`;
+        $return = `java -jar tools/typeChecker.jar -c '$c' -m '$m' -e '$ANDROID_PATH' -p '$p'`;
     }
     elsif($return =~ m/NotFound-JNI/ && not defined $p){
-        $return = `java -jar tools/typeChecker.jar -c '$c' -m $m -e $ANDROID_PATH`;
+        $return = `java -jar tools/typeChecker.jar -c '$c' -m '$m' -e '$ANDROID_PATH'`;
     }
     return $return;
 }
 sub fieldChecker{
     my($c,$f) = @_;
     my $return;
-    $return = `java -jar tools/typeChecker.jar -c '$c' -f $f -e $JARPATH`;
+    $return = `java -jar tools/typeChecker.jar -c '$c' -f '$f' -e '$JARPATH'`;
     if($return =~ m/NotFound-JNI/) {
-        $return = `java -jar tools/typeChecker.jar -c '$c' -f $f -e $ANDROID_PATH`;
+        $return = `java -jar tools/typeChecker.jar -c '$c' -f '$f' -e '$ANDROID_PATH'`;
     }
     return $return;
 }
