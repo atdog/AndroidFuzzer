@@ -31,6 +31,16 @@ my %PRIMITIVE_TYPE = (
     boolean => "Z",
     char => "C"
 );
+my %PRIMITIVE_TYPE_RESOLVE = (
+    I =>     "int",
+    B =>     "byte",
+    S =>     "short",
+    L =>     "long",
+    F =>     "float",
+    D =>     "double",
+    Z =>     "boolean",
+    C =>     "char",
+);
 my %ENTRY_POINT = (
     activity => [{
             name => "onCreate",
@@ -160,8 +170,8 @@ sub parseMethodDotFile {
     ###
     # parse the full fileName
     ###
-    my $methodCFG;
-    my @nodeArray;
+    my $methodCFG = {};
+    my @nodeArray = ();
     print $dotFileName, "\n";
     open(my $FILE, "< $dotFileName");
     while(<$FILE>) {
@@ -263,7 +273,7 @@ sub parseMethodDotFile {
                                 $varType = "$PRIMITIVE_TYPE{$varType}$1";
                             }
                             # a.b.c[]...
-                            elsif($parameter =~ m/([a-zA-Z\.0-9]*)(?:\[\])+/) {
+                            elsif($parameter =~ m/([\$a-zA-Z\.0-9]*)(?:\[\])+/) {
                                 $varType = "${varType}L$1;";
                             }
                         }
@@ -287,8 +297,11 @@ sub parseMethodDotFile {
                         if(exists $methodCFG->{_local}->{$1}) {
                             my $arrayType = $methodCFG->{_local}->{$1};
                             # [Lcom.android.htcdialer.util.SpeedDialUtils$SpeedDialEntry;'
-                            if($arrayType =~ m/^\[L?(.*);?$/) {
+                            if($arrayType =~ m/^\[L(.*);$/) {
                                 $varType = $1;
+                            }
+                            elsif($arrayType =~ m/^\[(.*)$/) {
+                                $varType = $PRIMITIVE_TYPE_RESOLVE{$1};
                             }
                             else {
                                 $varType = "ArrayError";
@@ -319,7 +332,7 @@ sub parseMethodDotFile {
                         $varType = "int";
                     }
                     # rx = (Typecast) ry
-                    elsif($varType =~ m/\((.*)\) .*/) {
+                    elsif($varType =~ m/^\((.*)\) .*$/) {
                         $varType = $1;
                     }
                     # rx = \"string\"
@@ -345,7 +358,7 @@ sub parseMethodDotFile {
                         print "-=-=-=-> returnType: $returnType\n";
                     }
                     # rx = rx.()
-                    elsif($varType =~ m/(?:[^ ]* )?(.*)\.([^\.]*)\((.*)\)/) {
+                    elsif($varType =~ m/(?:[^ ]* )?([^\(\)]*)\.([^\.\(\)]*)\((.*)\)/) {
                         my $parentType = $1;
                         my $apiName = $2;
                         my $parameter = $3;
@@ -355,7 +368,7 @@ sub parseMethodDotFile {
                             $className = $methodCFG->{_local}->{$parentType};
                         }
                         # rx = classname.api()
-                        elsif($parentType =~ m/^[a-zA-Z0-9\.]*$/) {
+                        elsif($parentType =~ m/^[a-zA-Z0-9\.\$]*$/) {
                                 $className = $parentType;
                         }
                         # parse parameter
@@ -468,4 +481,5 @@ sub Main{
     ######
     parseDotFileFromEntryPoint();
 
+    #parseMethodDotFile('com.android.htcdialer.EditSpeedDialEntryActivity', 'initLocationButton', 'int', '/Users/atdog/Desktop/evo/app/HtcDialer/sootOutput/com.android.htcdialer.EditSpeedDialEntryActivity/void initLocationButton(int)/jb.uce-ExceptionalUnitGraph-0.dot');
 }
