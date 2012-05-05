@@ -45,11 +45,28 @@ public class Main {
 //						"/Users/atdog/Desktop/myWork/CallRecorder",
 						
 				};
+		int[] a = {1};
+		String [] b = {"123"};
+		double[] c = {1};
+		byte [] d = {'3'};
+		short [] ee = {'3'};
+		float [] f = {3};
+		boolean []g ={true};
+		char []h = {'3'};
+		System.out.println(a.getClass().getName());
+		System.out.println(b.getClass().getName());
+		System.out.println(c.getClass().getName());
+		System.out.println(d.getClass().getName());
+		System.out.println(ee.getClass().getName());
+		System.out.println(f.getClass().getName());
+		System.out.println(g.getClass().getName());
+		System.out.println(h.getClass().getName());
+		
 		Option option = new Option();
 		JCommander jCommander = new JCommander(option);
 
 		try {
-			new JCommander(option, aStrings);
+			new JCommander(option, args);
 		} catch (ParameterException e) {
 			jCommander.usage();
 			System.exit(0);
@@ -119,6 +136,9 @@ public class Main {
 //				e1.printStackTrace();
 //			}
 //			return classLoader();
+			System.exit(0);
+		} catch (NoClassDefFoundError e) {
+			System.out.println("NotFound-NoDef exception");
 			System.exit(0);
 		} catch(RuntimeException e) {
 			System.out.println("NotFound-Runtime exception");
