@@ -18,6 +18,22 @@ my %PRIMITIVE_TYPE = (
 );
 
 if( -d $DIR_PATH) {
+    # special invoke
+    # e.g. sendMessage(android.os.message)
+    if($METHOD_NAME eq "sendMessage" && $PARAS eq "android.os.Message") {
+        $METHOD_NAME = "handleMessage";
+    }
+    elsif($METHOD_NAME eq "sendMessageAtFrontOfQueue" && $PARAS eq "android.os.Message") {
+        $METHOD_NAME = "handleMessage";
+    }
+    elsif($METHOD_NAME eq "sendMessageAtTime" && $PARAS eq "android.os.Message,long") {
+        $METHOD_NAME = "handleMessage";
+        @passParas = split ",", "android.os.Message";
+    }
+    elsif($METHOD_NAME eq "sendMessageDelayed" && $PARAS eq "android.os.Message,long") {
+        $METHOD_NAME = "handleMessage";
+        @passParas = split ",", "android.os.Message";
+    }
     open my $COMMAND, "ls -1 '$DIR_PATH'| grep '$METHOD_NAME' |";
     while(<$COMMAND>) {
         my $method = $_;

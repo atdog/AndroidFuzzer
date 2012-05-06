@@ -199,10 +199,10 @@ sub parseMethodDotFile {
             ###
             #  find the invokation to the next method CFG
             ###
-            if($statement =~ m/^(?:specialinvoke )?([^ ]*\(.*\))$/){ 
+            if($statement =~ m/^(?:label\d+: )?(?:specialinvoke )?([^ ]*\(.*\))$/){ 
                 my $invokation = $1;
                 if($invokation =~ m/^(?:new )?([^\.]*)\.([^\.]*)\((.*)\)$/) {
-                    my $parasOfInvokation = parseParas($methodCFG,$3);
+                    my $parasOfInvokation = parseParas($methodCFG,$3,1);
                     my $subMethodFile = "";
                     my $classNameOfInvokation;
                     my $methodNameOfInvokation = $2;
@@ -270,7 +270,7 @@ sub parseMethodDotFile {
                                 $varType = "${varType}[";
                             }
                             if($parameter =~ m/(int|byte|short|long|float|double|boolean|char)(?:\[\])+/) {
-                                $varType = "$PRIMITIVE_TYPE{$varType}$1";
+                                $varType = "$varType$PRIMITIVE_TYPE{$1}";
                             }
                             # a.b.c[]...
                             elsif($parameter =~ m/([\$a-zA-Z\.0-9]*)(?:\[\])+/) {
@@ -289,7 +289,7 @@ sub parseMethodDotFile {
                             $varType = "[L$type;";
                         }
                         else {
-                            $varType = "[$type";
+                            $varType = "[$PRIMITIVE_TYPE{$type}";
                         }
                     }
                     # rx = rx[]
@@ -357,8 +357,8 @@ sub parseMethodDotFile {
                         print "-=-=-=-> fieldName: $fieldName\n";
                         print "-=-=-=-> returnType: $returnType\n";
                     }
-                    # rx = rx.()
-                    elsif($varType =~ m/(?:[^ ]* )?([^\(\)]*)\.([^\.\(\)]*)\((.*)\)/) {
+                    # rx = rx.api()
+                    elsif($varType =~ m/^(?:label\d+: )?(?:specialinvoke )?([^\(\)]*)\.([^\.\(\)]*)\((.*)\)$/) {
                         my $parentType = $1;
                         my $apiName = $2;
                         my $parameter = $3;
@@ -372,7 +372,7 @@ sub parseMethodDotFile {
                                 $className = $parentType;
                         }
                         # parse parameter
-                        my $parasToCheck = parseParas($methodCFG,$parameter);
+                        my $parasToCheck = parseParas($methodCFG,$parameter,0);
                         print "-=-=-=-> className: $className\n";
                         print "-=-=-=-> apiName: $apiName($parameter)\n";
                         # run typeChecker.jar
@@ -405,13 +405,32 @@ sub parseMethodDotFile {
 }
 
 sub parseParas{
-    my ($methodCFG, $parameter) = @_;
+    my ($methodCFG, $parameter, $toFileMode) = @_;
     my $parasToCheck = "";
     if($parameter ne "") {
         my @paras = split(/, /,$parameter);
         for my $para (@paras) {
             if(exists $methodCFG->{_local}->{$para}) {
-                $parasToCheck="$parasToCheck,$methodCFG->{_local}->{$para}";
+                # to file mode: translate [Ljava.lang.String;  [I  -> java.lang.String[] int[]
+                print $methodCFG->{_local}->{$para},"\n";
+                if($methodCFG->{_local}->{$para} =~ m/^(\[+)(.*)$/ && $toFileMode == 1) {
+                    my $array = $1;
+                    my $arrayType = $2;
+                    my $dimension = "";
+                    while($array =~ m/^\[+$/) {
+                        $array =~ s/^\[(\[*)$/$1/;
+                        $dimension .= "[]";
+                    }
+                    if($arrayType =~ m/^L([a-zA-Z0-9\$\.]*);$/ ) {
+                        $parasToCheck="$parasToCheck,$1$dimension";
+                    }
+                    elsif($arrayType =~ m/^(I|B|S|L|F|D|Z|C)$/ ) {
+                        $parasToCheck="$parasToCheck,$PRIMITIVE_TYPE_RESOLVE{$1}$dimension";
+                    }
+                }
+                else {
+                    $parasToCheck="$parasToCheck,$methodCFG->{_local}->{$para}";
+                } 
             }
             elsif($para =~ m/^-?\d+$/) {
                 $parasToCheck="$parasToCheck,int";
@@ -481,5 +500,9 @@ sub Main{
     ######
     parseDotFileFromEntryPoint();
 
-    #parseMethodDotFile('com.android.htcdialer.EditSpeedDialEntryActivity', 'initLocationButton', 'int', '/Users/atdog/Desktop/evo/app/HtcDialer/sootOutput/com.android.htcdialer.EditSpeedDialEntryActivity/void initLocationButton(int)/jb.uce-ExceptionalUnitGraph-0.dot');
+    #parseMethodDotFile('com.android.htcdialer.HtcCountryCodePicker', 'initListView', '', '/Users/atdog/Desktop/evo/app/HtcDialer/sootOutput/com.android.htcdialer.HtcCountryCodePicker/void initListView()/jb.uce-ExceptionalUnitGraph-0.dot');
+    print "-=-=-=-> All parsed files\n";
+    for my $methodFile (keys %ALL_METHOD_CFG) {
+        print "$methodFile\n";
+    }
 }
