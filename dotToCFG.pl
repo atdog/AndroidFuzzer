@@ -409,14 +409,13 @@ sub parseMethodDotFile {
                             my $returnType;
                             if($parasToCheck eq "") {
                                 $returnType = methodChecker($className, $apiName);
-                                print "-=-=-=-> returnType: $returnType";
+                                print "-=-=-=-> returnType: $returnType\n";
                             }
                             else {
                                 print "-=-=-=-> parameter: $parasToCheck\n";
                                 $returnType = methodChecker($className, $apiName, $parasToCheck);
-                                print "-=-=-=-> returnType: $returnType";
+                                print "-=-=-=-> returnType: $returnType\n";
                             }
-                            chomp ($returnType);
                             if( $returnType !~ m/^NotFound-/) {
                                 $varType = $returnType;
                             }
@@ -530,18 +529,25 @@ sub methodChecker{
         $return = $ALL_METHOD_TYPE{"$c.$m($p)"};
     }
     else {
+        my $command;
         if($p ne "") {
-            $return = `java -jar tools/typeChecker.jar -c '$c' -m '$m' -e '$JARPATH' -p '$p'`;
+            $command="adb shell \"am startservice -a 'lab.mobile.ntu.TYPE_CHECKER' -e 'classname' '$c' -e 'methodname' '$m' -e 'appname' '/system/app/$APK_FILE_NAME' -e 'parameter' '$p'\"";
+            #$return = `java -jar tools/typeChecker.jar -c '$c' -m '$m' -e '$JARPATH' -p '$p'`;
         } 
         else {
-            $return =  `java -jar tools/typeChecker.jar -c '$c' -m '$m' -e '$JARPATH' `;
+            $command="adb shell \"am startservice -a 'lab.mobile.ntu.TYPE_CHECKER' -e 'classname' '$c' -e 'methodname' '$m' -e 'appname' '/system/app/$APK_FILE_NAME'\"";
+            #$return =  `java -jar tools/typeChecker.jar -c '$c' -m '$m' -e '$JARPATH' `;
         }
-        if($return =~ m/NotFound-JNI/ && defined $p) {
-            $return = `java -jar tools/typeChecker.jar -c '$c' -m '$m' -e '$ANDROID_PATH' -p '$p'`;
-        }
-        elsif($return =~ m/NotFound-JNI/ && not defined $p){
-            $return = `java -jar tools/typeChecker.jar -c '$c' -m '$m' -e '$ANDROID_PATH'`;
-        }
+        $command =~ s/\$/\\\$/g;
+        system($command);
+        $return = `adb -d logcat -d -v raw -s typeCheckerResult:D | tail -1`;
+        $return =~ s/[\r\n]//g;
+        #if($return =~ m/NotFound-JNI/ && defined $p) {
+        #    $return = `java -jar tools/typeChecker.jar -c '$c' -m '$m' -e '$ANDROID_PATH' -p '$p'`;
+        #}
+        #elsif($return =~ m/NotFound-JNI/ && not defined $p){
+        #    $return = `java -jar tools/typeChecker.jar -c '$c' -m '$m' -e '$ANDROID_PATH'`;
+        #}
         $ALL_METHOD_TYPE{"$c.$m($p)"} = $return;
     }
     return $return;
@@ -549,10 +555,15 @@ sub methodChecker{
 sub fieldChecker{
     my($c,$f) = @_;
     my $return;
-    $return = `java -jar tools/typeChecker.jar -c '$c' -f '$f' -e '$JARPATH'`;
-    if($return =~ m/NotFound-JNI/) {
-        $return = `java -jar tools/typeChecker.jar -c '$c' -f '$f' -e '$ANDROID_PATH'`;
-    }
+    my $command="adb shell \"am startservice -a 'lab.mobile.ntu.TYPE_CHECKER' -e 'classname' '$c' -e 'fieldname' '$f' -e 'appname' '/system/app/$APK_FILE_NAME'\"";
+    $command =~ s/\$/\\\$/g;
+    system($command);
+    $return = `adb -d logcat -d -v raw -s typeCheckerResult:D | tail -1`;
+    $return =~ s/[\r\n]//g;
+    #$return = `java -jar tools/typeChecker.jar -c '$c' -f '$f' -e '$JARPATH'`;
+    #if($return =~ m/NotFound-JNI/) {
+    #    $return = `java -jar tools/typeChecker.jar -c '$c' -f '$f' -e '$ANDROID_PATH'`;
+    #}
     return $return;
 }
 
