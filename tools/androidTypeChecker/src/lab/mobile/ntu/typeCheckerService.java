@@ -146,6 +146,7 @@ public class typeCheckerService extends Service {
     boolean compareParameter(Class<?>[] parameter1, String[] parameter2) {
         if (parameter1.length == parameter2.length) {
             for (int i = 0; i < parameter1.length; ++i) {
+                // Log.d(LOG_TAG,parameter1[i].getName()+"-"+parameter2[i]);
                 if (!inheritedCompare(parameter1[i], parameter2[i])) {
                     return false;
                 }
@@ -167,7 +168,7 @@ public class typeCheckerService extends Service {
                 Pattern pattern = Pattern.compile("(\\[+)L(.*);");
                 Matcher matcher1 = pattern.matcher(par1.getName());
                 Matcher matcher2 = pattern.matcher(par2);
-                Log.d(LOG_TAG, par1.getName() + " " + par2);
+                // Log.d(LOG_TAG, par1.getName() + " " + par2);
                 if (matcher1.matches() && matcher2.matches()) {
                     if (matcher1.group(1).equals(matcher2.group(1))
                             && matcher1.group(2).equals("java.lang.Object")) {
@@ -176,10 +177,19 @@ public class typeCheckerService extends Service {
                         result = false;
                     }
                 } else {
-                    Class<?> superPar2;
-                    superPar2 = classloader.loadClass(par2).getSuperclass();
-                    if (superPar2 != null) {
-                        result = inheritedCompare(par1, superPar2.getName());
+
+                    Class<?> superPar2 = classloader.loadClass(par2);
+                    for (Class<?> interfaceType : superPar2.getInterfaces()) {
+                        if (interfaceType.getName().equals(par1.getName())) {
+                            result = true;
+                            break;
+                        }
+                    }
+                    if (!result) {
+                        superPar2 = superPar2.getSuperclass();
+                        if (superPar2 != null) {
+                            result = inheritedCompare(par1, superPar2.getName());
+                        }
                     }
                 }
             } catch (ClassNotFoundException e) {
@@ -195,6 +205,4 @@ public class typeCheckerService extends Service {
         }
         return result;
     }
-
 }
-
