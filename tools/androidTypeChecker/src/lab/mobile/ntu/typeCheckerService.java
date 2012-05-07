@@ -21,6 +21,7 @@ public class typeCheckerService extends Service {
     String _fieldName;
     String[] _parameters = {};
     boolean _found = false;
+    boolean _private;
     String _returnType = "NotFound";
     ClassLoader classloader;
 
@@ -48,6 +49,7 @@ public class typeCheckerService extends Service {
         _methodName = intent.getStringExtra("methodname");
         _fieldName = intent.getStringExtra("fieldname");
         _appName = intent.getStringExtra("appname");
+        _private = intent.getBooleanExtra("private", true);
         String paras = intent.getStringExtra("parameter");
         if (_appName != null) {
             Log.d(LOG_TAG, "appname: " + _appName);
@@ -116,7 +118,13 @@ public class typeCheckerService extends Service {
     void inheritedMethod(Class<?> targetClass) {
         if (targetClass == null)
             return;
-        Method[] allMethodInClass = targetClass.getDeclaredMethods();
+        Method[] allMethodInClass = null;
+        if(_private) {
+            allMethodInClass = targetClass.getDeclaredMethods();
+        }
+        else {
+            allMethodInClass = targetClass.getMethods();
+        }
         for (Method method : allMethodInClass) {
             String methodName = method.getName();
             if (methodName.equals(_methodName)) {
@@ -134,7 +142,13 @@ public class typeCheckerService extends Service {
         if (targetClass == null)
             return;
         try {
-            Field field = targetClass.getDeclaredField(_fieldName);
+            Field field = null;
+            if(_private) {
+                field = targetClass.getDeclaredField(_fieldName);
+            }
+            else {
+                field = targetClass.getField(_fieldName);
+            }
             _returnType = field.getType().getName();
             _found = true;
         } catch (Exception e) {
@@ -146,7 +160,7 @@ public class typeCheckerService extends Service {
     boolean compareParameter(Class<?>[] parameter1, String[] parameter2) {
         if (parameter1.length == parameter2.length) {
             for (int i = 0; i < parameter1.length; ++i) {
-                // Log.d(LOG_TAG,parameter1[i].getName()+"-"+parameter2[i]);
+                Log.d(LOG_TAG, parameter1[i].getName() + "-" + parameter2[i]);
                 if (!inheritedCompare(parameter1[i], parameter2[i])) {
                     return false;
                 }
@@ -191,6 +205,9 @@ public class typeCheckerService extends Service {
                             result = inheritedCompare(par1, superPar2.getName());
                         }
                     }
+                    // else {
+                    //
+                    // }
                 }
             } catch (ClassNotFoundException e) {
                 // TODO Auto-generated catch block
@@ -206,3 +223,4 @@ public class typeCheckerService extends Service {
         return result;
     }
 }
+

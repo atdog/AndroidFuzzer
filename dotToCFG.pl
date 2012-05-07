@@ -541,6 +541,9 @@ sub methodChecker{
         }
         $command =~ s/\$/\\\$/g;
         $command =~ s/;/\\;/g;
+        if(! -d "$DIR_PATH/sootOutput/$c") {
+            $command .= " --ez 'private' 'false'";
+        }
         system($command);
         $return = `adb -d logcat -d -v raw -s typeCheckerResult:D | tail -1`;
         $return =~ s/[\r\n]//g;
@@ -560,6 +563,9 @@ sub fieldChecker{
     my $command="adb shell am startservice -a 'lab.mobile.ntu.TYPE_CHECKER' -e 'classname' '$c' -e 'fieldname' '$f' -e 'appname' '/system/app/$APK_FILE_NAME'";
     $command =~ s/\$/\\\$/g;
     $command =~ s/;/\\;/g;
+    if(! -d "$DIR_PATH/sootOutput/$c") {
+        $command .= " --ez 'private' 'false'";
+    }
     system($command);
     $return = `adb -d logcat -d -v raw -s typeCheckerResult:D | tail -1`;
     $return =~ s/[\r\n]//g;
