@@ -37,6 +37,7 @@ my %JIMPLE_PRIMITIVE_TYPE = (
     l =>     "long",
     z =>     "boolean",
     f =>     "float",
+    c =>     "char",
 );
 my %PRIMITIVE_TYPE_RESOLVE = (
     I =>     "int",
@@ -269,7 +270,7 @@ sub parseMethodDotFile {
                         print "-=-=-=-> returnType: $returnType\n";
                     }
                     # primitive data type
-                    elsif($localVar =~ m/^(?:label\d+: )?\$?(f|l|b|i|z)\d+.*$/) {
+                    elsif($localVar =~ m/^(?:label\d+: )?\$?(f|l|b|i|z|c)\d+.*$/) {
                         $varType = $JIMPLE_PRIMITIVE_TYPE{$1};
                         print "-=-=-=-> primitive data type\n";
                         print "-=-=-=-> type: $varType\n";
@@ -531,14 +532,15 @@ sub methodChecker{
     else {
         my $command;
         if($p ne "") {
-            $command="adb shell \"am startservice -a 'lab.mobile.ntu.TYPE_CHECKER' -e 'classname' '$c' -e 'methodname' '$m' -e 'appname' '/system/app/$APK_FILE_NAME' -e 'parameter' '$p'\"";
+            $command="adb shell am startservice -a 'lab.mobile.ntu.TYPE_CHECKER' -e 'classname' '$c' -e 'methodname' '$m' -e 'appname' '/system/app/$APK_FILE_NAME' -e 'parameter' '$p'";
             #$return = `java -jar tools/typeChecker.jar -c '$c' -m '$m' -e '$JARPATH' -p '$p'`;
         } 
         else {
-            $command="adb shell \"am startservice -a 'lab.mobile.ntu.TYPE_CHECKER' -e 'classname' '$c' -e 'methodname' '$m' -e 'appname' '/system/app/$APK_FILE_NAME'\"";
+            $command="adb shell am startservice -a 'lab.mobile.ntu.TYPE_CHECKER' -e 'classname' '$c' -e 'methodname' '$m' -e 'appname' '/system/app/$APK_FILE_NAME'";
             #$return =  `java -jar tools/typeChecker.jar -c '$c' -m '$m' -e '$JARPATH' `;
         }
         $command =~ s/\$/\\\$/g;
+        $command =~ s/;/\\;/g;
         system($command);
         $return = `adb -d logcat -d -v raw -s typeCheckerResult:D | tail -1`;
         $return =~ s/[\r\n]//g;
@@ -555,8 +557,9 @@ sub methodChecker{
 sub fieldChecker{
     my($c,$f) = @_;
     my $return;
-    my $command="adb shell \"am startservice -a 'lab.mobile.ntu.TYPE_CHECKER' -e 'classname' '$c' -e 'fieldname' '$f' -e 'appname' '/system/app/$APK_FILE_NAME'\"";
+    my $command="adb shell am startservice -a 'lab.mobile.ntu.TYPE_CHECKER' -e 'classname' '$c' -e 'fieldname' '$f' -e 'appname' '/system/app/$APK_FILE_NAME'";
     $command =~ s/\$/\\\$/g;
+    $command =~ s/;/\\;/g;
     system($command);
     $return = `adb -d logcat -d -v raw -s typeCheckerResult:D | tail -1`;
     $return =~ s/[\r\n]//g;
