@@ -1,6 +1,6 @@
-#!/usr/bin/perl -w
+#!/usr/bin/perl 
 
-use strict;
+#use strict;
 use ControlFlowGraph;
 use ControlFlowNode;
 use XML::Simple;
@@ -164,7 +164,8 @@ sub parseDotFileFromEntryPoint {
                     print "-------------> [0;31m$classPath.$entryPoint not found[0m\n";
                     return;
                 }
-                $fileName = `./getMethodDot.pl '$classPath' '$ENTRY_POINT{$comName}[$j]->{name}' '$ENTRY_POINT{$comName}[$j]->{paras}' '$JARPATH'`;
+                $fileName = getMethodDot($classPath,$ENTRY_POINT{$comName}[$j]->{name},$ENTRY_POINT{$comName}[$j]->{paras},$JARPATH);
+                print $fileName,"\n";
                 if($fileName !~ m/ERROR/) {
                     parseMethodDotFile($entryPoint, $ENTRY_POINT{$comName}[$j]->{name},$ENTRY_POINT{$comName}[$j]->{paras}, $fileName);
                 }
@@ -224,7 +225,7 @@ sub parseMethodDotFile {
                     }
                     print "-=-=-=-> invokation: $classNameOfInvokation.$methodNameOfInvokation($parasOfInvokation)\n";
                     if($classNameOfInvokation =~ m/$PACKAGE/) {
-                        $subMethodFile = `./getMethodDot.pl '$DIR_PATH/sootOutput/$classNameOfInvokation' '$methodNameOfInvokation' '$parasOfInvokation' '$JARPATH'`;
+                        $subMethodFile = getMethodDot("$DIR_PATH/sootOutput/$classNameOfInvokation",$methodNameOfInvokation,$parasOfInvokation,$JARPATH);
                         print "-=-=-=-> invoke file: $subMethodFile\n";
                         if($subMethodFile !~ /^ERROR$/) {
                             ####
@@ -541,6 +542,7 @@ sub methodChecker{
         elsif($return =~ m/NotFound-JNI/ && not defined $p){
             $return = `java -jar tools/typeChecker.jar -c '$c' -m '$m' -e '$ANDROID_PATH'`;
         }
+        $ALL_METHOD_TYPE{"$c.$m($p)"} = $return;
     }
     return $return;
 }
@@ -552,6 +554,82 @@ sub fieldChecker{
         $return = `java -jar tools/typeChecker.jar -c '$c' -f '$f' -e '$ANDROID_PATH'`;
     }
     return $return;
+}
+
+sub getMethodDot {
+    my ($class_dir_path, $method_name, $paras) = @_;
+    my @passParas = split ",", $paras;
+    my $is_found = 0;
+    my $file = "ERROR";
+
+    if( -d $class_dir_path) {
+        # special invoke
+        # e.g. sendMessage(android.os.message)
+        if($method_name eq "sendMessage" && $paras eq "android.os.Message") {
+            $method_name = "handleMessage";
+        }
+        elsif($method_name eq "sendMessageAtFrontOfQueue" && $paras eq "android.os.Message") {
+            $method_name = "handleMessage";
+        }
+        elsif($method_name eq "sendMessageAtTime" && $paras eq "android.os.Message,long") {
+            $method_name = "handleMessage";
+            @passParas = split ",", "android.os.Message";
+        }
+        elsif($method_name eq "sendMessageDelayed" && $paras eq "android.os.Message,long") {
+            $method_name = "handleMessage";
+            @passParas = split ",", "android.os.Message";
+        }
+        open my $command, "ls -1 '$class_dir_path'| grep '$method_name' |";
+        while(<$command>) {
+            my $method = $_;
+            chomp $method;
+            if($method =~ m/[^ ]* [^ ]*\((.*)\)/) {
+                my @realParas = split ",", $1;
+                if($#realParas == $#passParas) {
+                    $is_found = 1;
+                    for my $i (0..$#realParas) {
+                        # change array
+                        my $varType;
+                        my $parameter = $realParas[$i];
+                        if($varType =~ m/^.*(\[\])+$/) {
+                            my $dimension = 0;
+                            my $array = $1;
+                            while($array =~ m/\[\]/) {
+                                $dimension++;
+                                $array =~ s/^\[\](.*)$/$1/;
+                            }
+                            $varType = "";
+                            for my $i (1..$dimension) {
+                                $varType = "${varType}[";
+                            }
+                            if($parameter =~ m/(int|byte|short|long|float|double|boolean|char)(?:\[\])+/) {
+                                $parameter = "$PRIMITIVE_TYPE{$varType}$1";
+                            }
+                            # a.b.c[]...
+                            elsif($parameter =~ m/([a-zA-Z\.0-9]*)(?:\[\])+/) {
+                                $parameter = "${varType}L$1;";
+                            }
+                        }
+                        my $compareResult = `java -jar ./tools/paraChecker.jar -e $JARPATH -1 '$parameter' -2 '$passParas[$i]'`;
+                        if($compareResult =~ m/false/) {
+                            $is_found = 0;
+                            break;
+                        }
+                        else { #true
+                            $is_found = 1;
+                        }
+                    }
+                    if($is_found) {
+                        $file = `grep -lR '$method_name' '$class_dir_path/$method'`; 
+                        chomp $file;
+                        break;
+                    }
+                }
+            }
+        }
+        close $command;
+    }
+    return $file;
 }
 sub Main{
     ######
