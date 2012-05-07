@@ -73,8 +73,11 @@ my %ENTRY_POINT = (
         }]
 );
 my %ALL_METHOD_CFG = ();
+my %ALL_METHOD_TYPE = ();
 my $DIR_PATH = $APK_FILE_PATH;
+my $APK_FILE_NAME = $APK_FILE_PATH;
 $DIR_PATH =~ s/\.apk//;
+$APK_FILE_NAME =~ s/.*\/([^\/]*\.apk)/$1/;
 
 Main();
 
@@ -518,19 +521,26 @@ sub parseParas{
 }
 
 sub methodChecker{
-    my($c,$m,$p) = @_;
+    my $c = $_[0];
+    my $m = $_[1];
+    my $p = defined $_[2] ? $_[2] : "";
     my $return;
-    if(defined $p) {
-        $return = `java -jar tools/typeChecker.jar -c '$c' -m '$m' -e '$JARPATH' -p '$p'`;
-    } 
+    if(exists $ALL_METHOD_TYPE{"$c.$m($p)"}) {
+        $return = $ALL_METHOD_TYPE{"$c.$m($p)"};
+    }
     else {
-        $return =  `java -jar tools/typeChecker.jar -c '$c' -m '$m' -e '$JARPATH' `;
-    }
-    if($return =~ m/NotFound-JNI/ && defined $p) {
-        $return = `java -jar tools/typeChecker.jar -c '$c' -m '$m' -e '$ANDROID_PATH' -p '$p'`;
-    }
-    elsif($return =~ m/NotFound-JNI/ && not defined $p){
-        $return = `java -jar tools/typeChecker.jar -c '$c' -m '$m' -e '$ANDROID_PATH'`;
+        if($p ne "") {
+            $return = `java -jar tools/typeChecker.jar -c '$c' -m '$m' -e '$JARPATH' -p '$p'`;
+        } 
+        else {
+            $return =  `java -jar tools/typeChecker.jar -c '$c' -m '$m' -e '$JARPATH' `;
+        }
+        if($return =~ m/NotFound-JNI/ && defined $p) {
+            $return = `java -jar tools/typeChecker.jar -c '$c' -m '$m' -e '$ANDROID_PATH' -p '$p'`;
+        }
+        elsif($return =~ m/NotFound-JNI/ && not defined $p){
+            $return = `java -jar tools/typeChecker.jar -c '$c' -m '$m' -e '$ANDROID_PATH'`;
+        }
     }
     return $return;
 }
@@ -562,6 +572,7 @@ sub Main{
     parseDotFileFromEntryPoint();
 
     #parseMethodDotFile('com.android.htcdialer.DialerService$WorkingHandler', 'updateContacts', '', '/Users/atdog/Desktop/evo/app/HtcDialer/sootOutput/com.android.htcdialer.DialerService$WorkingHandler/void updateContacts()/jb.uce-ExceptionalUnitGraph-0.dot');
+    print Dumper(%ALL_METHOD_TYPE);
     print "-=-=-=-> All parsed files\n";
     for my $methodFile (keys %ALL_METHOD_CFG) {
         print "$methodFile\n";
