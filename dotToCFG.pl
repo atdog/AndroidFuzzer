@@ -11,7 +11,7 @@ if($#ARGV != 0) {
     exit;
 }
 my $RECORD_MODE = 0;
-my $ANDROID_PATH = "/System/Library/Frameworks/JavaVM.framework/Classes/classes.jar:/Users/atdog/Desktop/myWork/tools/lib/android-4.0.3.jar";
+#my $ANDROID_PATH = "/System/Library/Frameworks/JavaVM.framework/Classes/classes.jar:/Users/atdog/Desktop/myWork/tools/lib/android-4.0.3.jar";
 my $JARPATH = "/Users/atdog/Desktop/myWork/tools/analyzeAPICall/framework/core/classes_dex2jar.jar:/Users/atdog/Desktop/myWork/tools/analyzeAPICall/framework/bouncycastle/classes_dex2jar.jar:/Users/atdog/Desktop/myWork/tools/analyzeAPICall/framework/ext/classes_dex2jar.jar:/Users/atdog/Desktop/myWork/tools/analyzeAPICall/framework/framework/classes_dex2jar.jar:/Users/atdog/Desktop/myWork/tools/analyzeAPICall/framework/android.policy/classes_dex2jar.jar:/Users/atdog/Desktop/myWork/tools/analyzeAPICall/framework/services/classes_dex2jar.jar:/Users/atdog/Desktop/myWork/tools/analyzeAPICall/framework/core-junit/classes_dex2jar.jar:/Users/atdog/Desktop/myWork/tools/analyzeAPICall/framework/com.htc.commonctrl/classes_dex2jar.jar:/Users/atdog/Desktop/myWork/tools/analyzeAPICall/framework/com.htc.framework/classes_dex2jar.jar:/Users/atdog/Desktop/myWork/tools/analyzeAPICall/framework/com.htc.android.pimlib/classes_dex2jar.jar:/Users/atdog/Desktop/myWork/tools/analyzeAPICall/framework/com.htc.android.easopen/classes_dex2jar.jar:/Users/atdog/Desktop/myWork/tools/analyzeAPICall/framework/com.scalado.util.ScaladoUtil/classes_dex2jar.jar:/Users/atdog/Desktop/myWork/tools/analyzeAPICall/framework/com.orange.authentication.simcard/classes_dex2jar.jar:/Users/atdog/Desktop/myWork/tools/analyzeAPICall/framework/android.supl/classes_dex2jar.jar:/Users/atdog/Desktop/myWork/tools/analyzeAPICall/framework/kafdex/classes_dex2jar.jar";
 my ($APK_FILE_PATH) = @ARGV ;
 my $PACKAGE;
@@ -165,8 +165,7 @@ sub parseDotFileFromEntryPoint {
                     print "-------------> [0;31m$classPath.$entryPoint not found[0m\n";
                     return;
                 }
-                $fileName = getMethodDot($classPath,$ENTRY_POINT{$comName}[$j]->{name},$ENTRY_POINT{$comName}[$j]->{paras},$JARPATH);
-                print $fileName,"\n";
+                $fileName = getMethodDot($classPath,$ENTRY_POINT{$comName}[$j]->{name},$ENTRY_POINT{$comName}[$j]->{paras});
                 if($fileName !~ m/ERROR/) {
                     parseMethodDotFile($entryPoint, $ENTRY_POINT{$comName}[$j]->{name},$ENTRY_POINT{$comName}[$j]->{paras}, $fileName);
                 }
@@ -226,7 +225,7 @@ sub parseMethodDotFile {
                     }
                     print "-=-=-=-> invokation: $classNameOfInvokation.$methodNameOfInvokation($parasOfInvokation)\n";
                     if($classNameOfInvokation =~ m/$PACKAGE/) {
-                        $subMethodFile = getMethodDot("$DIR_PATH/sootOutput/$classNameOfInvokation",$methodNameOfInvokation,$parasOfInvokation,$JARPATH);
+                        $subMethodFile = getMethodDot("$DIR_PATH/sootOutput/$classNameOfInvokation",$methodNameOfInvokation,$parasOfInvokation);
                         print "-=-=-=-> invoke file: $subMethodFile\n";
                         if($subMethodFile !~ /^ERROR$/) {
                             ####
@@ -418,6 +417,16 @@ sub parseMethodDotFile {
                                 print "-=-=-=-> returnType: $returnType\n";
                             }
                             if( $returnType !~ m/^NotFound-/) {
+                                my $fileName = getMethodDot("$DIR_PATH/sootOutput/$className",$apiName,$parasToCheck);
+                                if($fileName !~ m/ERROR/) {
+                                    parseMethodDotFile($className, $apiName,$parasToCheck, $fileName) if not exists $ALL_METHOD_CFG{$fileName};
+                                    push(@{$ALL_METHOD_CFG{$fileName}->{_prevNode}}, $nodeArray[$nodeNum]);
+                                    $nodeArray[$nodeNum]->{_subMethod} = $ALL_METHOD_CFG{$fileName};
+                                    print "-=-=-=-> subMethod parsing done.\n";
+                                }
+                                else {
+                                    print "-------------> [0;31m$className $apiName not found[0m\n";
+                                }
                                 $varType = $returnType;
                             }
                         }
@@ -661,7 +670,7 @@ sub Main{
     # parse AndroidManifest to find entry point for each component
     ######
     $JARPATH = "$JARPATH:$DIR_PATH/classes_dex2jar.jar";
-    $ANDROID_PATH = "$ANDROID_PATH:$DIR_PATH/classes_dex2jar.jar";
+    #$ANDROID_PATH = "$ANDROID_PATH:$DIR_PATH/classes_dex2jar.jar";
     parseAndroidManifest("$DIR_PATH/AndroidManifest-real.xml");
 
     ######
