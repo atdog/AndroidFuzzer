@@ -165,7 +165,7 @@ sub parseDotFileFromEntryPoint {
                     print "-------------> [0;31m$classPath.$entryPoint not found[0m\n";
                     return;
                 }
-                $fileName = getMethodDot($classPath,$ENTRY_POINT{$comName}[$j]->{name},$ENTRY_POINT{$comName}[$j]->{paras});
+                $fileName = getMethodDot($entryPoint,$ENTRY_POINT{$comName}[$j]->{name},$ENTRY_POINT{$comName}[$j]->{paras});
                 if($fileName !~ m/ERROR/) {
                     parseMethodDotFile($entryPoint, $ENTRY_POINT{$comName}[$j]->{name},$ENTRY_POINT{$comName}[$j]->{paras}, $fileName);
                 }
@@ -225,7 +225,7 @@ sub parseMethodDotFile {
                     }
                     print "-=-=-=-> invokation: $classNameOfInvokation.$methodNameOfInvokation($parasOfInvokation)\n";
                     if($classNameOfInvokation =~ m/$PACKAGE/) {
-                        $subMethodFile = getMethodDot("$DIR_PATH/sootOutput/$classNameOfInvokation",$methodNameOfInvokation,$parasOfInvokation);
+                        $subMethodFile = getMethodDot("$classNameOfInvokation",$methodNameOfInvokation,$parasOfInvokation);
                         print "-=-=-=-> invoke file: $subMethodFile\n";
                         if($subMethodFile !~ /^ERROR$/) {
                             ####
@@ -417,7 +417,7 @@ sub parseMethodDotFile {
                                 print "-=-=-=-> returnType: $returnType\n";
                             }
                             if( $returnType !~ m/^NotFound-/) {
-                                my $fileName = getMethodDot("$DIR_PATH/sootOutput/$className",$apiName,$parasToCheck);
+                                my $fileName = getMethodDot($className,$apiName,$parasToCheck);
                                 if($fileName !~ m/ERROR/) {
                                     parseMethodDotFile($className, $apiName,$parasToCheck, $fileName) if not exists $ALL_METHOD_CFG{$fileName};
                                     push(@{$ALL_METHOD_CFG{$fileName}->{_prevNode}}, $nodeArray[$nodeNum]);
@@ -437,6 +437,9 @@ sub parseMethodDotFile {
                     }
                 }
                 $methodCFG->{_local}->{$localVar} = $varType;
+                ####
+                # special case, 
+                ####
             }
 
             ###
@@ -586,10 +589,11 @@ sub fieldChecker{
 }
 
 sub getMethodDot {
-    my ($class_dir_path, $method_name, $paras) = @_;
+    my ($class, $method_name, $paras) = @_;
     my @passParas = split ",", $paras;
     my $is_found = 0;
     my $file = "ERROR";
+    my $class_dir_path = "$DIR_PATH/sootOutput/$class";
 
     if( -d $class_dir_path) {
         # special invoke
@@ -607,6 +611,9 @@ sub getMethodDot {
         elsif($method_name eq "sendMessageDelayed" && $paras eq "android.os.Message,long") {
             $method_name = "handleMessage";
             @passParas = split ",", "android.os.Message";
+        }
+        elsif($method_name eq "start" and $paras eq "") {
+            $method_name = "run";
         }
         open my $command, "ls -1 '$class_dir_path'| grep '$method_name' |";
         while(<$command>) {
