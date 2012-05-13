@@ -556,8 +556,18 @@ sub methodChecker{
         if(! -d "$DIR_PATH/sootOutput/$c") {
             $command .= " --ez 'private' 'false'";
         }
+        system("adb logcat -c");
         system($command);
-        $return = `adb -d logcat -d -v raw -s typeCheckerResult:D | tail -1`;
+        #$return = `adb -d logcat -d -v raw -s typeCheckerResult:D | tail -1`;
+        my $pid = open my $logcatHandler, "adb logcat -v raw -s typeCheckerResult:D |";
+        while(<$logcatHandler>) {
+            if($_ !~ m/^--------- beginning of.*/) {
+                $return = $_;
+                kill 'TERM', $pid;
+                close $logcatHandler;
+                break;
+            }
+        }
         $return =~ s/[\r\n]//g;
         #if($return =~ m/NotFound-JNI/ && defined $p) {
         #    $return = `java -jar tools/typeChecker.jar -c '$c' -m '$m' -e '$ANDROID_PATH' -p '$p'`;
@@ -578,8 +588,18 @@ sub fieldChecker{
     if(! -d "$DIR_PATH/sootOutput/$c") {
         $command .= " --ez 'private' 'false'";
     }
+    system("adb logcat -c");
     system($command);
-    $return = `adb -d logcat -d -v raw -s typeCheckerResult:D | tail -1`;
+    #$return = `adb -d logcat -d -v raw -s typeCheckerResult:D | tail -1`;
+    my $pid = open my $logcatHandler, "adb logcat -v raw -s typeCheckerResult:D |";
+    while(<$logcatHandler>) {
+        if($_ !~ m/^--------- beginning of.*/) {
+            $return = $_;
+            kill 'TERM', $pid;
+            close $logcatHandler;
+            break;
+        }
+    }
     $return =~ s/[\r\n]//g;
     #$return = `java -jar tools/typeChecker.jar -c '$c' -f '$f' -e '$JARPATH'`;
     #if($return =~ m/NotFound-JNI/) {
