@@ -544,11 +544,11 @@ sub methodChecker{
     else {
         my $command;
         if($p ne "") {
-            $command="adb shell am startservice -a 'lab.mobile.ntu.TYPE_CHECKER' -e 'classname' '$c' -e 'methodname' '$m' -e 'appname' '/system/app/$APK_FILE_NAME' -e 'parameter' '$p'";
+            $command="adb shell am startservice -a 'lab.mobile.ntu.TYPE_CHECKER' --es 'classname' '$c' --es 'methodname' '$m' --es 'appname' '/system/app/$APK_FILE_NAME' --es 'parameter' '$p'";
             #$return = `java -jar tools/typeChecker.jar -c '$c' -m '$m' -e '$JARPATH' -p '$p'`;
         } 
         else {
-            $command="adb shell am startservice -a 'lab.mobile.ntu.TYPE_CHECKER' -e 'classname' '$c' -e 'methodname' '$m' -e 'appname' '/system/app/$APK_FILE_NAME'";
+            $command="adb shell am startservice -a 'lab.mobile.ntu.TYPE_CHECKER' --es 'classname' '$c' --es 'methodname' '$m' --es 'appname' '/system/app/$APK_FILE_NAME'";
             #$return =  `java -jar tools/typeChecker.jar -c '$c' -m '$m' -e '$JARPATH' `;
         }
         $command =~ s/\$/\\\$/g;
@@ -582,7 +582,7 @@ sub methodChecker{
 sub fieldChecker{
     my($c,$f) = @_;
     my $return;
-    my $command="adb shell am startservice -a 'lab.mobile.ntu.TYPE_CHECKER' -e 'classname' '$c' -e 'fieldname' '$f' -e 'appname' '/system/app/$APK_FILE_NAME'";
+    my $command="adb shell am startservice -a 'lab.mobile.ntu.TYPE_CHECKER' --es 'classname' '$c' --es 'fieldname' '$f' --es 'appname' '/system/app/$APK_FILE_NAME'";
     $command =~ s/\$/\\\$/g;
     $command =~ s/;/\\;/g;
     if(! -d "$DIR_PATH/sootOutput/$c") {
