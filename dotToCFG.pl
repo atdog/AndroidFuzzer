@@ -213,7 +213,7 @@ sub parseMethodDotFile {
             ###
             if($statement =~ m/^(?:label\d+: )?(?:specialinvoke )?([^ ]*\(.*\))$/){ 
                 my $invokation = $1;
-                if($invokation =~ m/^(?:new )?([^\.]*)\.([^\.]*)\((.*)\)$/) {
+                if($invokation =~ m/^(?:new )?([^\.]*)\.([^\.\(\)]*)\((.*)\)$/) {
                     my $parasOfInvokation = parseParas($methodCFG,$3,1);
                     my $subMethodFile = "";
                     my $classNameOfInvokation;
@@ -782,9 +782,10 @@ sub Main{
     ######
     # parse each dot file of Method to CFG
     ######
-    parseDotFileFromEntryPoint();
+    #parseDotFileFromEntryPoint();
 
-    #parseMethodDotFile('com.android.htcdialer.widget.DialerKeypad', 'setType', 'com.android.htcdialer.widget.DialerKeypad$Type,boolean', '/Users/atdog/work/evo/app/HtcDialer/sootOutput/com.android.htcdialer.widget.DialerKeypad/void setType(com.android.htcdialer.widget.DialerKeypad$Type,boolean)/jb.uce-ExceptionalUnitGraph-0.dot');
+    parseMethodDotFile('com.android.htcdialer.Dialer', 'applyThemeOnActivityCreated', '', '/Users/atdog/work/evo/app/HtcDialer/sootOutput/com.android.htcdialer.Dialer/void applyThemeOnActivityCreated()/jb.uce-ExceptionalUnitGraph-0.dot');
+
     print Dumper(%ALL_METHOD_TYPE);
     print "-=-=-=-> All parsed files\n";
     for my $methodFile (keys %ALL_METHOD_CFG) {
