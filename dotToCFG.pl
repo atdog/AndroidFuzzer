@@ -461,13 +461,24 @@ sub parseMethodDotFile {
     if($entryPointMethod eq "onCreate" && $entryPointMethodParas eq "android.os.Bundle") {
         $method = "onStart";
         $entryPointMethodParas = "";
+        $subMethodFile = getMethodDot($entryPointClass,$method,$entryPointMethodParas);
+        if($subMethodFile !~ /^ERROR$/) {
+            parseMethodDotFile($entryPointClass, $method, "", $subMethodFile) if not exists $ALL_METHOD_CFG{$subMethodFile};
+            push(@{$ALL_METHOD_CFG{$subMethodFile}->{_prevNode}}, $nodeArray[$endNodeNum]);
+            $nodeArray[$endNodeNum]->{_subMethod} = $ALL_METHOD_CFG{$subMethodFile};
+            print "-=-=-=-> subMethod parsing done.\n";
+        }
+        else {
+            $method = "onResume";
+            $entryPointMethodParas = "";
+        }
     }
     elsif($entryPointMethod eq "onStart" && $entryPointMethodParas eq "") {
         $method = "onResume";
         $entryPointMethodParas = "";
     }
     if($method ne "") {
-        $subMethodFile = getMethodDot("$entryPointClass",$method,"");
+        $subMethodFile = getMethodDot($entryPointClass,$method,$entryPointMethodParas);
         print "-=-=-=-> invoke file: $subMethodFile\n";
         if($subMethodFile !~ /^ERROR$/) {
             parseMethodDotFile($entryPointClass, $method, "", $subMethodFile) if not exists $ALL_METHOD_CFG{$subMethodFile};
@@ -513,7 +524,31 @@ sub parseParas{
     my $parasToCheck = "";
     if($parameter ne "") {
         my @paras = split(/, /,$parameter);
-        for my $para (@paras) {
+        ###
+        #  append the string
+        ###
+        my @newParas;
+        my $startAppend = 0;
+        for my $i (0..$#paras) {
+            if($paras[$i] =~ m/^\\".*$/ && $paras[$i] !~ m/^.*\\"$/) {
+                $startAppend = 1;    
+                push @newParas, $paras[$i];
+            }
+            elsif($paras[$i] !~ m/^\\".*$/ && $paras[$i] =~ m/^.*\\"$/) {
+                $startAppend = 0;
+                $newParas[$#newParas] .= $paras[$i];
+            }
+            else {
+                if($startAppend == 1) {
+                    $newParas[$#newParas] .= $paras[$i];
+                }
+                else {
+                    push @newParas, $paras[$i];
+                }
+            }
+        }
+        ###
+        for my $para (@newParas) {
             if(exists $methodCFG->{_local}->{$para}) {
                 # to file mode: translate [Ljava.lang.String;  [I  -> java.lang.String[] int[]
                 #print $methodCFG->{_local}->{$para},"\n";
@@ -749,7 +784,7 @@ sub Main{
     ######
     parseDotFileFromEntryPoint();
 
-    #parseMethodDotFile('com.android.htcdialer.DialerService$WorkingHandler', 'updateContacts', '', '/Users/atdog/Desktop/evo/app/HtcDialer/sootOutput/com.android.htcdialer.DialerService$WorkingHandler/void updateContacts()/jb.uce-ExceptionalUnitGraph-0.dot');
+    #parseMethodDotFile('com.android.htcdialer.widget.DialerKeypad', 'setType', 'com.android.htcdialer.widget.DialerKeypad$Type,boolean', '/Users/atdog/work/evo/app/HtcDialer/sootOutput/com.android.htcdialer.widget.DialerKeypad/void setType(com.android.htcdialer.widget.DialerKeypad$Type,boolean)/jb.uce-ExceptionalUnitGraph-0.dot');
     print Dumper(%ALL_METHOD_TYPE);
     print "-=-=-=-> All parsed files\n";
     for my $methodFile (keys %ALL_METHOD_CFG) {

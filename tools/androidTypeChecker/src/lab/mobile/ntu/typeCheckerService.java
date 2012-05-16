@@ -119,9 +119,16 @@ public class typeCheckerService extends Service {
                 Matcher matcher2 = pattern.matcher(par2);
                 // Log.d(LOG_TAG, par1.getName() + " " + par2);
                 if (matcher1.matches() && matcher2.matches()) {
-                    if (matcher1.group(1).equals(matcher2.group(1))
-                            && matcher1.group(2).equals("java.lang.Object")) {
-                        result = true;
+                    if (matcher1.group(1).equals(matcher2.group(1))) {
+                        if( matcher1.group(2).equals("java.lang.Object")) {
+                            result = true;
+                        }
+                        else if(inheritedCompareFromString(matcher1.group(2), matcher2.group(2))) {
+                            result = true;
+                        }
+                        else {
+                            result = false;
+                        }
                     } else {
                         result = false;
                     }
@@ -249,9 +256,16 @@ public class typeCheckerService extends Service {
                 Matcher matcher2 = pattern.matcher(par2);
                 // Log.d(LOG_TAG, par1.getName() + " " + par2);
                 if (matcher1.matches() && matcher2.matches()) {
-                    if (matcher1.group(1).equals(matcher2.group(1))
-                            && matcher1.group(2).equals("java.lang.Object")) {
-                        result = true;
+                    if (matcher1.group(1).equals(matcher2.group(1))) {
+                        if( matcher1.group(2).equals("java.lang.Object")) {
+                            result = true;
+                        }
+                        else if(inheritedCompareFromString(matcher1.group(2), matcher2.group(2))) {
+                            result = true;
+                        }
+                        else {
+                            result = false;
+                        }
                     } else {
                         result = false;
                     }
