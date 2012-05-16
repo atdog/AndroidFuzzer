@@ -183,6 +183,7 @@ sub parseMethodDotFile {
     ###
     my $methodCFG = {};
     my @nodeArray = ();
+    my $endNodeNum;
     print $dotFileName, "\n";
     open(my $FILE, "< $dotFileName");
     while(<$FILE>) {
@@ -241,6 +242,9 @@ sub parseMethodDotFile {
                         print "-=-=-=-> Dot file not exist.\n";
                     }
                 }
+            }
+            elsif($statement =~ m/^(?:label\d+: )?return (.*)$/) {
+                $endNodeNum = $nodeNum;
             }
             ###
             #  need find the type of local vars
@@ -449,6 +453,29 @@ sub parseMethodDotFile {
     print "==== data ====" , "\n";
     #$methodCFG->dumpGraph;
     print Dumper($methodCFG->{_local});
+
+    ###
+    #  for android activity lifecycle
+    ###
+    my $method = "";
+    if($entryPointMethod eq "onCreate" && $entryPointMethodParas eq "android.os.Bundle") {
+        $method = "onStart";
+        $entryPointMethodParas = "";
+    }
+    elsif($entryPointMethod eq "onStart" && $entryPointMethodParas eq "") {
+        $method = "onResume";
+        $entryPointMethodParas = "";
+    }
+    if($method ne "") {
+        $subMethodFile = getMethodDot("$entryPointClass",$method,"");
+        print "-=-=-=-> invoke file: $subMethodFile\n";
+        if($subMethodFile !~ /^ERROR$/) {
+            parseMethodDotFile($entryPointClass, $method, "", $subMethodFile) if not exists $ALL_METHOD_CFG{$subMethodFile};
+            push(@{$ALL_METHOD_CFG{$subMethodFile}->{_prevNode}}, $nodeArray[$endNodeNum]);
+            $nodeArray[$endNodeNum]->{_subMethod} = $ALL_METHOD_CFG{$subMethodFile};
+            print "-=-=-=-> subMethod parsing done.\n";
+        }
+    }
 }
 
 sub toJimpleType {
@@ -666,7 +693,24 @@ sub getMethodDot {
                                 $parameter = "${varType}L$1;";
                             }
                         }
-                        my $compareResult = `java -jar ./tools/paraChecker.jar -e $JARPATH -1 '$parameter' -2 '$passParas[$i]'`;
+                        #my $compareResult = `java -jar ./tools/paraChecker.jar -e $JARPATH -1 '$parameter' -2 '$passParas[$i]'`;
+                        my $command="adb shell am startservice -a 'lab.mobile.ntu.TYPE_CHECKER' --es 'comp1' '$parameter' --es 'comp2' '$passParas[$i]' --es 'appname' '/system/app/$APK_FILE_NAME'";
+                        $command =~ s/\$/\\\$/g;
+                        $command =~ s/;/\\;/g;
+                        system("adb logcat -c");
+                        system($command);
+                        #$return = `adb -d logcat -d -v raw -s typeCheckerResult:D | tail -1`;
+                        my $pid = open my $logcatHandler, "adb logcat -v raw -s typeCheckerResult:D |";
+                        while(<$logcatHandler>) {
+                            if($_ !~ m/^--------- beginning of.*/) {
+                                $return = $_;
+                                kill 'TERM', $pid;
+                                close $logcatHandler;
+                                break;
+                            }
+                        }
+                        $compareResult =~ s/[\r\n]//g;
+
                         if($compareResult =~ m/false/) {
                             $is_found = 0;
                             break;

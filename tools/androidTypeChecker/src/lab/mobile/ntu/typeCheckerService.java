@@ -23,6 +23,8 @@ public class typeCheckerService extends Service {
     boolean _found = false;
     boolean _private;
     String _returnType = "NotFound";
+    String _comp1 = null;
+    String _comp2 = null;
     ClassLoader classloader;
 
     @Override
@@ -51,6 +53,8 @@ public class typeCheckerService extends Service {
         _appName = intent.getStringExtra("appname");
         _private = intent.getBooleanExtra("private", true);
         String paras = intent.getStringExtra("parameter");
+        _comp1 = intent.getStringExtra("comp1");
+        _comp2 = intent.getStringExtra("comp2");
         if (_appName != null) {
             Log.d(LOG_TAG, "appname: " + _appName);
             classloader = new DexClassLoader(_appName, getDir("dex", 0)
@@ -88,9 +92,70 @@ public class typeCheckerService extends Service {
                 }
             }
         }
+        else if(_comp1 != null && _comp2 != null) {
+            Log.d(LOG_TAG,_comp1 + "," + _comp2);
+            if(inheritedCompareFromString( _comp1, _comp2)) {
+                _returnType = "true";
+            }
+            else {
+                _returnType = "false";
+            }
+        }
         Log.d(LOG_TAG_RESULT, _returnType);
         stopSelf();
         return super.onStartCommand(intent, flags, startId);
+    }
+
+    boolean inheritedCompareFromString(String par1, String par2) {
+        boolean result = false;
+        // Log.d(LOG_TAG, par1.getName() +"  ->  "+ par2);
+        if (par1.equals(par2)
+                || par1.equals("java.lang.Class")) {
+            result = true;
+        } else {
+            try {
+                Pattern pattern = Pattern.compile("(\\[+)L(.*);");
+                Matcher matcher1 = pattern.matcher(par1);
+                Matcher matcher2 = pattern.matcher(par2);
+                // Log.d(LOG_TAG, par1.getName() + " " + par2);
+                if (matcher1.matches() && matcher2.matches()) {
+                    if (matcher1.group(1).equals(matcher2.group(1))
+                            && matcher1.group(2).equals("java.lang.Object")) {
+                        result = true;
+                    } else {
+                        result = false;
+                    }
+                } else {
+
+                    Class<?> superPar2 = classloader.loadClass(par2);
+                    for (Class<?> interfaceType : superPar2.getInterfaces()) {
+                        if (interfaceType.getName().equals(par1)) {
+                            result = true;
+                            break;
+                        }
+                    }
+                    if (!result) {
+                        superPar2 = superPar2.getSuperclass();
+                        if (superPar2 != null) {
+                            result = inheritedCompareFromString(par1, superPar2.getName());
+                        }
+                    }
+                    // else {
+                    //
+                    // }
+                }
+            } catch (ClassNotFoundException e) {
+                // TODO Auto-generated catch block
+                if (par2.equals("null")) {
+                    return true;
+                } else if (par1.equals("boolean")
+                        && par2.equals("int")) {
+                    return true;
+                }
+                // Log.d(LOG_TAG, "class not found");
+            }
+        }
+        return result;
     }
 
     Class<?> classLoader() {
