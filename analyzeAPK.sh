@@ -12,7 +12,7 @@ SOOT_CLASSPATH="framework/core/classes_dex2jar.jar:framework/bouncycastle/classe
 #####
 # Translate AndroidManifest file from binary to human readable
 #####
-#[ -d $DIR_NAME ] && rm -rf $DIR_NAME
+[ ! -f $APK_LOCATION ] && echo File not found. && exit
 echo "[0;32m=====> Decode xml(you need install framework first)[0m"
 tools/apktool d -f $APK_LOCATION $DIR_NAME
 
