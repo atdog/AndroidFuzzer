@@ -7,7 +7,9 @@ sub new{
         _nextNode => [],
         _nodeNum => shift,
         _label => shift,
-        _subMethod => undef
+        _subMethod => undef,
+        _methodCFG => undef,
+        _return => {}
     };
     bless $self, $class;
     return $self;

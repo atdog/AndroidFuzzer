@@ -10,18 +10,17 @@ DIR_NAME=`echo $APK_LOCATION | sed -En 's/\.apk$//p'`
 SOOT_CLASSPATH="framework/core/classes_dex2jar.jar:framework/bouncycastle/classes_dex2jar.jar:framework/ext/classes_dex2jar.jar:framework/framework/classes_dex2jar.jar:framework/android.policy/classes_dex2jar.jar:framework/services/classes_dex2jar.jar:framework/core-junit/classes_dex2jar.jar:framework/com.htc.commonctrl/classes_dex2jar.jar:framework/com.htc.framework/classes_dex2jar.jar:framework/com.htc.android.pimlib/classes_dex2jar.jar:framework/com.htc.android.easopen/classes_dex2jar.jar:framework/com.scalado.util.ScaladoUtil/classes_dex2jar.jar:framework/com.orange.authentication.simcard/classes_dex2jar.jar:framework/android.supl/classes_dex2jar.jar:framework/kafdex/classes_dex2jar.jar:$DIR_NAME/classes_dex2jar.jar"
 
 #####
+# Translate AndroidManifest file from binary to human readable
+#####
+[ ! -f $APK_LOCATION ] && echo File not found. && exit
+echo "[0;32m=====> Decode xml(you need install framework first)[0m"
+tools/apktool d -f $APK_LOCATION $DIR_NAME
+
+#####
 # unzip apk file
 #####
 echo "[0;32m=====> unzip apk file[0m"
-[ -d $DIR_NAME ] && rm -rf $DIR_NAME
-mkdir -p $DIR_NAME
-unzip $APK_LOCATION -d $DIR_NAME
-
-#####
-# Translate AndroidManifest file from binary to human readable
-#####
-echo "[0;32m=====> Get AndroidManifest[0m"
-java -jar tools/AXMLPrinter2.jar $DIR_NAME/AndroidManifest.xml > $DIR_NAME/AndroidManifest-real.xml
+unzip -n $APK_LOCATION -d $DIR_NAME
 
 #####
 # dex 2 jar

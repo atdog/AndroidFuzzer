@@ -11,8 +11,6 @@ if($#ARGV != 0) {
     exit;
 }
 my $RECORD_MODE = 0;
-#my $ANDROID_PATH = "/System/Library/Frameworks/JavaVM.framework/Classes/classes.jar:/Users/atdog/Desktop/myWork/tools/lib/android-4.0.3.jar";
-my $JARPATH = "/Users/atdog/Desktop/myWork/tools/analyzeAPICall/framework/core/classes_dex2jar.jar:/Users/atdog/Desktop/myWork/tools/analyzeAPICall/framework/bouncycastle/classes_dex2jar.jar:/Users/atdog/Desktop/myWork/tools/analyzeAPICall/framework/ext/classes_dex2jar.jar:/Users/atdog/Desktop/myWork/tools/analyzeAPICall/framework/framework/classes_dex2jar.jar:/Users/atdog/Desktop/myWork/tools/analyzeAPICall/framework/android.policy/classes_dex2jar.jar:/Users/atdog/Desktop/myWork/tools/analyzeAPICall/framework/services/classes_dex2jar.jar:/Users/atdog/Desktop/myWork/tools/analyzeAPICall/framework/core-junit/classes_dex2jar.jar:/Users/atdog/Desktop/myWork/tools/analyzeAPICall/framework/com.htc.commonctrl/classes_dex2jar.jar:/Users/atdog/Desktop/myWork/tools/analyzeAPICall/framework/com.htc.framework/classes_dex2jar.jar:/Users/atdog/Desktop/myWork/tools/analyzeAPICall/framework/com.htc.android.pimlib/classes_dex2jar.jar:/Users/atdog/Desktop/myWork/tools/analyzeAPICall/framework/com.htc.android.easopen/classes_dex2jar.jar:/Users/atdog/Desktop/myWork/tools/analyzeAPICall/framework/com.scalado.util.ScaladoUtil/classes_dex2jar.jar:/Users/atdog/Desktop/myWork/tools/analyzeAPICall/framework/com.orange.authentication.simcard/classes_dex2jar.jar:/Users/atdog/Desktop/myWork/tools/analyzeAPICall/framework/android.supl/classes_dex2jar.jar:/Users/atdog/Desktop/myWork/tools/analyzeAPICall/framework/kafdex/classes_dex2jar.jar";
 my ($APK_FILE_PATH) = @ARGV ;
 my $PACKAGE;
 my %APP_ENTRY_POINTS = (
@@ -54,24 +52,24 @@ my %ENTRY_POINT = (
             name => "onCreate",
             paras => "android.os.Bundle"
         }],
-    service => [{
-            name => "onStartCommand",
-            paras => "android.content.Intent,int,int"
-        },{
-            name => "onBind",
-            paras => "android.content.Intent"
-        },{
-            name => "onCreate",
-            paras => ""
-        }],
-    receiver => [{
-            name => "onReceive",
-            paras => "android.content.Context,android.content.Intent" 
-        }],
-    provider => [{
-            name => "onCreate",
-            paras => ""
-        }]
+#    service => [{
+#            name => "onStartCommand",
+#            paras => "android.content.Intent,int,int"
+#        },{
+#            name => "onBind",
+#            paras => "android.content.Intent"
+#        },{
+#            name => "onCreate",
+#            paras => ""
+#        }],
+#    receiver => [{
+#            name => "onReceive",
+#            paras => "android.content.Context,android.content.Intent" 
+#        }],
+#    provider => [{
+#            name => "onCreate",
+#            paras => ""
+#        }]
 );
 my %ALL_METHOD_CFG = ();
 my %ALL_METHOD_TYPE = ();
@@ -104,7 +102,9 @@ sub parseAndroidManifest {
             my $componentSet = $applications->{$component};
             my $reference = ref($componentSet);
             if($reference eq 'HASH') {
-                push(@{$APP_ENTRY_POINTS{$component}}, {classname=>$componentSet->{'android:name'}});
+                if(checkIntentFilterS($applications->{$component}->{'intent-filter'}) >= 1) {
+                    push(@{$APP_ENTRY_POINTS{$component}}, {classname=>$componentSet->{'android:name'}});
+                }
                 # record provider name
                 if($component eq "provider") {
                     recordProviderNameToFile($componentSet->{'android:name'},$PACKAGE, $componentSet->{'android:authorities'});
@@ -117,7 +117,10 @@ sub parseAndroidManifest {
                 my @cSet = @{$componentSet};
                 for my $i (0..@cSet-1) {
                     my $eachComponent = $cSet[$i];
-                    push(@{$APP_ENTRY_POINTS{$component}}, {classname=>$eachComponent->{'android:name'}}) ;
+                    if(checkIntentFilterS($eachComponent->{'intent-filter'}) >= 1) {
+
+                        push(@{$APP_ENTRY_POINTS{$component}}, {classname=>$eachComponent->{'android:name'}}) ;
+                    }
                     # record provider name
                     if($component eq "provider") {
                         recordProviderNameToFile($eachComponent->{'android:name'},$PACKAGE, $eachComponent->{'android:authorities'});
@@ -127,6 +130,63 @@ sub parseAndroidManifest {
         }
     }
    #print Dumper(%APP_ENTRY_POINTS);
+}
+
+sub checkIntentFilter {
+    my ($intentFilter) = @_;
+    my $referenceAction = ref($intentFilter->{action});
+    my $referenceCategory = ref($intentFilter->{category});
+    if($referenceAction eq 'HASH') {
+        if($intentFilter->{action}->{'android:name'} eq 'android.intent.action.MAIN') {
+            if($referenceCategory eq 'HASH') {
+                if($intentFilter->{category}->{'android:name'} eq 'android.intent.category.LAUNCHER') {
+                    return 1;
+                }
+            }
+            elsif($referenceCategory eq 'ARRAY') {
+                for my $category ( @{$intentFilter->{category}}) {
+                    if($category->{'android:name'} eq 'android.intent.category.LAUNCHER') {
+                        return 1;
+                    }
+                }
+            }
+        }
+    }
+    elsif($referenceAction eq 'Array') {
+        for my $action (@{$intentFilter->{action}}) {
+            if($action->{'android:name'} eq 'android.intent.action.MAIN') {
+                if($referenceCategory eq 'HASH') {
+                    if($intentFilter->{category}->{'android:name'} eq 'android.intent.category.LAUNCHER') {
+                        return 1;
+                    }
+                }
+                elsif($referenceCategory eq 'ARRAY') {
+                    for my $category ( @{$intentFilter->{category}}) {
+                        if($category->{'android:name'} eq 'android.intent.category.LAUNCHER') {
+                            return 1;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return 0;
+}
+
+sub checkIntentFilterS {
+    my ($intentFilterHashOrArray) = @_;
+    my $reference = ref($intentFilterHashOrArray);
+    my $count = 0;
+    if($reference eq 'HASH') {
+        my $intentFilter = $intentFilterHashOrArray;
+        $count += checkIntentFilter($intentFilter);
+    }
+    elsif($reference eq 'ARRAY') {
+        for my $intentFilter (@$intentFilterHashOrArray) {
+            $count += checkIntentFilter($intentFilter);
+        }
+    }
+    return $count;
 }
 
 sub recordProviderNameToFile {
@@ -189,17 +249,27 @@ sub parseMethodDotFile {
     while(<$FILE>) {
         if($_ =~ m/label="(.*)";/) {
             my $node = new ControlFlowNode(-1,$1);
-            $methodCFG->{_root} = $node;
+            #$methodCFG->{_root} = $node;
             push(@{$node->{_prevNode}}, $node);
-            $methodCFG = new ControlFlowGraph($dotFileName,$node);
+            $methodCFG = new ControlFlowGraph($dotFileName,$node,\@nodeArray);
+            $node->{_methodCFG} = $methodCFG;
             $ALL_METHOD_CFG{$dotFileName} = $methodCFG;
         }
         elsif($_ =~ m/.*\"(\d+)\"->\"(\d+)\".*/) {
             push(@{$nodeArray[$1]->{_nextNode}},$nodeArray[$2]);
             push(@{$nodeArray[$2]->{_prevNode}},$nodeArray[$1]);
+            if(defined $nodeArray[$1]->{_subMethod}) {
+                my @subMethodNodeArray = @{$nodeArray[$1]->{_subMethod}->{_nodeArray}};
+                for my $subMethodNode (@subMethodNodeArray) {
+                    if($#{@{$subMethodNode->{_nextNode}}} == -1) {
+                        $subMethodNode->{_return}->{"$dotFileName:$1"} = $nodeArray[$2];
+                    }
+                }
+            }
         }
         elsif($_ =~ m/.*\"(\d+)\" \[.*label=\"(.*)\",\];/) {
             my $node = new ControlFlowNode($1,$2);
+            $node->{_methodCFG} = $methodCFG;
             my $nodeNum = $1;
             $nodeArray[$nodeNum]=$node;
             if($1 == 0) {
@@ -233,8 +303,11 @@ sub parseMethodDotFile {
                             # create sub method CFG
                             ####
                             parseMethodDotFile($classNameOfInvokation, $methodNameOfInvokation, $parasOfInvokation, $subMethodFile) if not exists $ALL_METHOD_CFG{$subMethodFile};
-                            push(@{$ALL_METHOD_CFG{$subMethodFile}->{_prevNode}}, $nodeArray[$nodeNum]);
-                            $nodeArray[$nodeNum]->{_subMethod} = $ALL_METHOD_CFG{$subMethodFile};
+                            if(isRecursive($entryPointClass,$entryPointMethod,$entryPointMethodParas,$classNameOfInvokation,$methodNameOfInvokation,$parasOfInvokation) == 0) {
+                                $nodeArray[$nodeNum]->{_subMethod} = $ALL_METHOD_CFG{$subMethodFile};
+                                push(@{$ALL_METHOD_CFG{$subMethodFile}->{_prevNode}}, $nodeArray[$nodeNum]);
+                            }
+#                            push(@{$ALL_METHOD_CFG{$subMethodFile}->{_nodeArray}[$#{@{$ALL_METHOD_CFG{$subMethodFile}->{_nodeArray}}}]->{_nextNode}}, $nodeArray[$nodeNum]);
                             print "-=-=-=-> subMethod parsing done.\n";
                         }
                     }
@@ -424,8 +497,11 @@ sub parseMethodDotFile {
                                 my $fileName = getMethodDot($className,$apiName,$parasToCheck);
                                 if($fileName !~ m/ERROR/) {
                                     parseMethodDotFile($className, $apiName,$parasToCheck, $fileName) if not exists $ALL_METHOD_CFG{$fileName};
-                                    push(@{$ALL_METHOD_CFG{$fileName}->{_prevNode}}, $nodeArray[$nodeNum]);
-                                    $nodeArray[$nodeNum]->{_subMethod} = $ALL_METHOD_CFG{$fileName};
+                                    if(isRecursive($entryPointClass,$entryPointMethod,$entryPointMethodParas,$className,$apiName,$parasToCheck) == 0) {
+                                        push(@{$ALL_METHOD_CFG{$fileName}->{_prevNode}}, $nodeArray[$nodeNum]);
+                                        $nodeArray[$nodeNum]->{_subMethod} = $ALL_METHOD_CFG{$fileName};
+                                    }
+#                                    push(@{$ALL_METHOD_CFG{$fileName}->{_nodeArray}[$#{@{$ALL_METHOD_CFG{$fileName}->{_nodeArray}}}]->{_nextNode}}, $nodeArray[$nodeNum]);
                                     print "-=-=-=-> subMethod parsing done.\n";
                                 }
                                 else {
@@ -465,7 +541,7 @@ sub parseMethodDotFile {
         if($subMethodFile !~ /^ERROR$/) {
             parseMethodDotFile($entryPointClass, $method, "", $subMethodFile) if not exists $ALL_METHOD_CFG{$subMethodFile};
             push(@{$ALL_METHOD_CFG{$subMethodFile}->{_prevNode}}, $nodeArray[$endNodeNum]);
-            $nodeArray[$endNodeNum]->{_subMethod} = $ALL_METHOD_CFG{$subMethodFile};
+            push(@{$nodeArray[$endNodeNum]->{_nextNode}}, $ALL_METHOD_CFG{$subMethodFile}->{_root});
             print "-=-=-=-> subMethod parsing done.\n";
         }
         else {
@@ -483,7 +559,7 @@ sub parseMethodDotFile {
         if($subMethodFile !~ /^ERROR$/) {
             parseMethodDotFile($entryPointClass, $method, "", $subMethodFile) if not exists $ALL_METHOD_CFG{$subMethodFile};
             push(@{$ALL_METHOD_CFG{$subMethodFile}->{_prevNode}}, $nodeArray[$endNodeNum]);
-            $nodeArray[$endNodeNum]->{_subMethod} = $ALL_METHOD_CFG{$subMethodFile};
+            push(@{$nodeArray[$endNodeNum]->{_nextNode}}, $ALL_METHOD_CFG{$subMethodFile}->{_root});
             print "-=-=-=-> subMethod parsing done.\n";
         }
     }
@@ -670,6 +746,33 @@ sub fieldChecker{
     return $return;
 }
 
+sub isRecursive {
+    my ($class,$method,$paras,$newClass,$newMethod,$newParas) = @_;
+    if($class eq $newClass) {
+        if($method eq $newMethod && $paras eq $newParas) {
+                return 1;
+        }
+        #else {
+        #    if($method eq "sendMessage" && $paras eq "android.os.Message") {
+        #        return 1;
+        #    }
+        #    elsif($method eq "sendMessageAtFrontOfQueue" && $paras eq "android.os.Message") {
+        #        return 1;
+        #    }
+        #    elsif($method eq "sendMessageAtTime" && $paras eq "android.os.Message,long") {
+        #        return 1;
+        #    }
+        #    elsif($method eq "sendMessageDelayed" && $paras eq "android.os.Message,long") {
+        #        return 1;
+        #    }
+        #    elsif($method eq "start" && $paras eq "") {
+        #        return 1;
+        #    }
+        #}
+    }
+    return 0;
+}
+
 sub getMethodDot {
     my ($class, $method_name, $paras) = @_;
     my @passParas = split ",", $paras;
@@ -697,7 +800,7 @@ sub getMethodDot {
         elsif($method_name eq "start" and $paras eq "") {
             $method_name = "run";
         }
-        open my $command, "ls -1 '$class_dir_path'| grep '$method_name' |";
+        open my $command, "ls -1 '$class_dir_path'| grep ' $method_name(' |";
         while(<$command>) {
             my $method = $_;
             chomp $method;
@@ -775,20 +878,23 @@ sub Main{
     ######
     # parse AndroidManifest to find entry point for each component
     ######
-    $JARPATH = "$JARPATH:$DIR_PATH/classes_dex2jar.jar";
+    #$JARPATH = "$JARPATH:$DIR_PATH/classes_dex2jar.jar";
     #$ANDROID_PATH = "$ANDROID_PATH:$DIR_PATH/classes_dex2jar.jar";
     parseAndroidManifest("$DIR_PATH/AndroidManifest-real.xml");
 
     ######
     # parse each dot file of Method to CFG
     ######
-    #parseDotFileFromEntryPoint();
+    parseDotFileFromEntryPoint();
 
-    parseMethodDotFile('com.android.htcdialer.Dialer', 'applyThemeOnActivityCreated', '', '/Users/atdog/work/evo/app/HtcDialer/sootOutput/com.android.htcdialer.Dialer/void applyThemeOnActivityCreated()/jb.uce-ExceptionalUnitGraph-0.dot');
+    #parseMethodDotFile('com.android.htcdialer.DialerService', 'onCreate', '', '/Users/atdog/work/evo/app/HtcDialer/sootOutput/com.android.htcdialer.DialerService/void onCreate()/jb.uce-ExceptionalUnitGraph-0.dot');
+    #parseMethodDotFile('com.android.htcdialer.search.SearchablePhone', '<init>', 'long,int,java.lang.String,java.lang.String', '/Users/atdog/work/evo/app/HtcDialer/sootOutput/com.android.htcdialer.search.SearchablePhone/void <init>(long,int,java.lang.String,java.lang.String)/jb.uce-ExceptionalUnitGraph-0.dot');
 
     print Dumper(%ALL_METHOD_TYPE);
     print "-=-=-=-> All parsed files\n";
     for my $methodFile (keys %ALL_METHOD_CFG) {
         print "$methodFile\n";
     }
+    #$ALL_METHOD_CFG{'/Users/atdog/work/evo/app/HtcDialer/sootOutput/com.android.htcdialer.DialerService/void onCreate()/jb.uce-ExceptionalUnitGraph-0.dot'}->dumpGraph;
+    #$ALL_METHOD_CFG{'/Users/atdog/work/evo/app/HtcDialer/sootOutput/com.android.htcdialer.search.SearchablePhone/void <init>(long,int,java.lang.String,java.lang.String)/jb.uce-ExceptionalUnitGraph-0.dot'}->dumpGraph;
 }
