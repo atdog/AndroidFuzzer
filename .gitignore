@@ -3,3 +3,5 @@ log.txt
 providerNameList.txt
 framework/
 lib/
+bin/
+gen/

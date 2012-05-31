@@ -1,0 +1,3 @@
+adb shell am startservice -a 'tw.dm4.CONTACTFUZZ'
+adb shell am startservice -a 'tw.dm4.CONTACTSFUZZ' --es 'action' 'insert' --es 'display_name' "name" --es 'phone' '999999'
+
