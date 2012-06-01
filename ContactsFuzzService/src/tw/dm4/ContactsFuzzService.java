@@ -23,7 +23,7 @@ import java.lang.Thread;
 public class ContactsFuzzService extends Service {
 
     public static final String LOG_TAG = "dm4";
-    public static ServerSocket serverSocket;
+    public ServerSocket serverSocket;
     public final int serverPort = 7777;
 
     @Override
