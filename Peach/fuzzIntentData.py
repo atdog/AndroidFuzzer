@@ -38,6 +38,7 @@ from Peach.Engine.engine import Engine
 from Peach.publisher import Publisher
 import base64
 import re
+from socket import *
 
 try:
     import win32pdh
@@ -138,9 +139,12 @@ class FuzzIntentData(Publisher):
 
         return self._fd.read()
     def call(self, method, args):
-        s = args[1].encode('string-escape') + r';'
-        s = re.sub(r'(\\|;)', r'\\\1', s)
-        cmd = "adb shell am startservice -a 'tw.dm4.CONTACTSFUZZ' -e 'action' 'insert' -e 'display_name' '" + s + "'"
-        print "cmd: " + cmd
-        os.system(cmd)
+        fuzz_string = re.sub(r'([a-zA-Z0-9]{2})', r'\\x\1', args[0])
+        host = 'linux2.csie.org'
+        port = 7777
+        s = socket(AF_INET, SOCK_STREAM)
+        s.connect((host, port))
+        s.send(fuzz_string + "\n")
+        s.close()
+        print fuzz_string
 # end
