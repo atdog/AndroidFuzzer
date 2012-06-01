@@ -24,7 +24,7 @@
 
 	<!-- Import defaults for Peach instance -->
 	<Include ns="default" src="file:defaults.xml" />
-    <PythonPath path="/Users/dm4/Dropbox/fuzz/AndroidFuzzer/Peach/" />
+    <PythonPath path="./" />
 	<Import import="fuzzIntentData" />
 
 	<!-- Create a simple data template containing a single string -->
