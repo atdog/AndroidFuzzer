@@ -1,4 +1,5 @@
 *.swp
+*.pyc
 log.txt
 providerNameList.txt
 framework/
