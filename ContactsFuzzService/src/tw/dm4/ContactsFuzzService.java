@@ -15,7 +15,9 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.io.IOException;
 import java.io.BufferedReader;
+import java.io.BufferedWriter;
 import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
 import java.lang.Thread;
 
 public class ContactsFuzzService extends Service {
@@ -60,9 +62,11 @@ public class ContactsFuzzService extends Service {
                         while(!line.equals("androidFuzzerDead")) {
                             Socket newSocket = serverSocket.accept();
                             BufferedReader in = new BufferedReader(new InputStreamReader(newSocket.getInputStream()));
+                            BufferedWriter out = new BufferedWriter(new OutputStreamWriter(newSocket.getOutputStream()));
                             line = in.readLine();
                             Log.d(LOG_TAG,"read: "+line);
                             fuzzTable(line);
+                            out.newLine();
                             newSocket.close();
                         }
                         serverSocket.close();
@@ -102,33 +106,15 @@ public class ContactsFuzzService extends Service {
     }
 
     String unescapeString(String str) {
-        String result = "";
-        for (int i = 0; i < str.length(); i++) {
-            char c = str.charAt(i);
-            String tmp = "";
-            if (c == '\\') {
-                i++;
-                c = str.charAt(i);
-                if (c == '\\') {
-                    tmp += "\\";
-                }
-                else if (c == 'x') {
-                    String hex = "0x";
-                    hex += str.substring(i + 1, i + 3);
-                    i += 2;
-                    int dec = Integer.decode(hex);
-                    byte b = (byte)(dec & 0xff);
-                    tmp += new String(new byte[] {b});
-                }
-                else {
-                    Log.d(LOG_TAG, "not handle");
-                }
-            }
-            else {
-                tmp += c;
-            }
-            result += tmp;
+        int bufLen = str.length() / 4;
+        byte[] byteAry = new byte[bufLen];
+        for (int i = 0; i < bufLen; i++) {
+            String hex = "0";
+            hex += str.substring(i * 4 + 1, i * 4 + 4);
+            int dec = Integer.decode(hex);
+            byte b = (byte)(dec & 0xff);
+            byteAry[i] = b;
         }
-        return result;
+        return new String(byteAry);
     }
 }

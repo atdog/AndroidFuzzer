@@ -139,8 +139,8 @@ class FuzzIntentData(Publisher):
 
         return self._fd.read()
     def call(self, method, args):
-        fuzz_string = re.sub(r'([a-zA-Z0-9]{2})', r'\\x\1', args[0])
-        host = 'linux2.csie.org'
+        fuzz_string = re.sub(r'([a-zA-Z0-9]{2})', r'\\x\1', args[0].encode('hex'))
+        host = '127.0.0.1'
         port = 7777
         s = socket(AF_INET, SOCK_STREAM)
         s.connect((host, port))
