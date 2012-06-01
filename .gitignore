@@ -5,3 +5,4 @@ framework/
 lib/
 bin/
 gen/
+*.sublime*

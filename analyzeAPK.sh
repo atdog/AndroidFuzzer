@@ -27,7 +27,7 @@ unzip -n $APK_LOCATION -d $DIR_NAME
 # Retrieve the classes from dex file
 #####
 echo "[0;32m=====> dex2jar[0m"
-tools/dex2jar-0.0.9.8/dex2jar.sh $DIR_NAME/classes.dex || (echo "[0;31m=====> Classes.dex not exist [0m" && exit)
+tools/dex2jar-0.0.9.8/dex2jar.sh "$DIR_NAME/classes.dex" || (echo "[0;31m=====> Classes.dex not exist [0m" && exit)
 (cd $DIR_NAME && jar xvf classes_dex2jar.jar)
 
 #####
