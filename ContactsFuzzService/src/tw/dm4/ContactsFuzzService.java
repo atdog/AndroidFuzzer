@@ -11,15 +11,35 @@ import android.provider.ContactsContract.Data;
 import android.content.ContentUris;
 import android.net.Uri;
 import android.util.Log;
+import java.net.ServerSocket;
+import java.net.Socket;
+import java.io.IOException;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.lang.Thread;
 
 public class ContactsFuzzService extends Service {
 
     public static final String LOG_TAG = "dm4";
+    public static ServerSocket serverSocket;
+    public final int serverPort = 7777;
 
     @Override
     public void onCreate() {
         super.onCreate();
         Log.d(LOG_TAG, "onCreate");
+        openSocket();
+    }
+
+    void openSocket() {
+        Log.d(LOG_TAG, "openSocket");
+        try {
+            serverSocket = new ServerSocket(serverPort);
+            serverSocket.setReuseAddress(true);
+        }
+        catch(IOException e) {
+            serverSocket = null;
+        }
     }
 
     @Override
@@ -32,55 +52,53 @@ public class ContactsFuzzService extends Service {
     public int onStartCommand(Intent intent, int flags, int startId) {
         Log.d(LOG_TAG, "onStartCommand");
 
-        String action = intent.getStringExtra("action");
-        String display_name = intent.getStringExtra("display_name");
-        String phone = intent.getStringExtra("phone");
-        String unescape_name = unescapeString(display_name);
-
-        if (action == null) {
-            return START_STICKY;
-        }
-
-        if (action.equals("insert")) {
-            Log.d(LOG_TAG, "insert");
-
-            // new raw_contact_id
-            ContentValues values = new ContentValues();
-            values.clear();
-            Uri rawContactUri = getContentResolver().insert(RawContacts.CONTENT_URI, values);
-            long rawContactId = ContentUris.parseId(rawContactUri);
-
-            if (display_name != null) {
-                values.clear();
-                values.put(Data.RAW_CONTACT_ID, rawContactId);
-                values.put(Data.MIMETYPE, StructuredName.CONTENT_ITEM_TYPE);
-                values.put(StructuredName.DISPLAY_NAME, unescape_name);
-                getContentResolver().insert(Data.CONTENT_URI, values);
+        new Thread(new Runnable() {
+            public void run() {
+                if(serverSocket != null) { 
+                    try {
+                        String line = "";
+                        while(!line.equals("androidFuzzerDead")) {
+                            Socket newSocket = serverSocket.accept();
+                            BufferedReader in = new BufferedReader(new InputStreamReader(newSocket.getInputStream()));
+                            line = in.readLine();
+                            Log.d(LOG_TAG,"read: "+line);
+                            fuzzTable(line);
+                            newSocket.close();
+                        }
+                        serverSocket.close();
+                    } catch(IOException e) {
+                        Log.d(LOG_TAG,"catch exception");
+                    }
+                }
             }
+        }).start();
 
-            if (phone != null) {
-                values.clear();
-                values.put(Phone.RAW_CONTACT_ID, rawContactId);
-                values.put(Data.MIMETYPE, Phone.CONTENT_ITEM_TYPE);
-                values.put(Phone.NUMBER, phone);
-                getContentResolver().insert(Data.CONTENT_URI, values);
-            }
-
-            // log
-            Log.d(LOG_TAG, "RAW_CONTACT_ID: " + rawContactId);
-            Log.d(LOG_TAG, "DISPLAY_NAME: " + unescape_name);
-            Log.d(LOG_TAG, "NUMBER: " + phone);
-        }
-        else if (action.equals("update")) {
-            Log.d(LOG_TAG, "update not implemented");
-        }
-        else if (action.equals("exception")) {
-            String a = "abc";
-            Integer.valueOf(a);
-        }
 
         stopSelf();
+        Log.d(LOG_TAG, "stopSelf");
         return super.onStartCommand(intent, flags, startId);
+    }
+    @Override
+    public void onDestroy (){
+        Log.d(LOG_TAG, "onDestroy");
+    }
+
+    public void fuzzTable(String display_name) {
+        String unescape_name = unescapeString(display_name);
+
+        // new raw_contact_id
+        ContentValues values = new ContentValues();
+        Uri rawContactUri = getContentResolver().insert(RawContacts.CONTENT_URI, values);
+        long rawContactId = ContentUris.parseId(rawContactUri);
+
+        values.put(Data.RAW_CONTACT_ID, rawContactId);
+        values.put(Data.MIMETYPE, StructuredName.CONTENT_ITEM_TYPE);
+        values.put(StructuredName.DISPLAY_NAME, unescape_name);
+        getContentResolver().insert(Data.CONTENT_URI, values);
+
+        // log
+        Log.d(LOG_TAG, "RAW_CONTACT_ID: " + rawContactId);
+        Log.d(LOG_TAG, "DISPLAY_NAME: " + unescape_name);
     }
 
     String unescapeString(String str) {
