@@ -46,8 +46,8 @@
 		<State name="State1"  >
 			<Action type="call" method="test" publisher="myPublisher">
                 <Param name="p1" type="in">
-				    <DataModel ref="IntegerTemplate"/>
-                    <Data name="data" fileName="./test.txt"/>
+				    <DataModel ref="StringTemplate"/>
+                    <Data name="data" fileName="./*.txt"/>
                 </Param>
 			</Action>
 		</State>
@@ -55,8 +55,8 @@
 
     <Agent name="LocalAgent" location="http://127.0.0.1:9000">
        <Monitor class="fuzzIntentDataMonitor.FuzzIntentDataMonitor">
-           <Param name="monkeyport" value="1111" />
-            <Param name="device" value="emulator-5554" />
+           <Param name="monkeyport" value="11111" />
+            <Param name="device" value="emulator-5574" />
        </Monitor>
     
     </Agent>
@@ -76,8 +76,8 @@
             <Param name="filename" value="test" />
             <Param name="package"  value="com.alexyu.android.ice" />
             <Param name="activity" value="com.alexyu.android.ice.Urgence" />
-            <Param name="port" value="10001" />
-            <Param name="device" value="emulator-5554" />
+            <Param name="port" value="20001" />
+            <Param name="device" value="emulator-5574" />
         </Publisher>
 	</Test>
 

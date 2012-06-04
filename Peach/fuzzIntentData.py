@@ -147,6 +147,7 @@ class FuzzIntentData(Publisher):
         return self._fd.read()
     def call(self, method, args):
         # write data
+        os.system("adb -s "+self._device+" shell am startservice -a 'tw.dm4.CONTACTSFUZZ' --es 'port' '"+str(self._port)+"'")
         fuzz_string = re.sub(r'([a-zA-Z0-9]{2})', r'\\x\1', args[0].encode('hex'))
         host = '127.0.0.1'
         port = self._port
@@ -163,6 +164,6 @@ class FuzzIntentData(Publisher):
         os.system('adb -s '+self._device+' shell am startservice -a "org.atdog.stopprocess.KILL" --es "package" "'+ PACKAGE +'"')
         # monkey runner is used to start activity
         #os.system("monkeyrunner executeApp.py " + PACKAGE +" " + ACTIVITY);
-        os.system('adb -s '+self._device+' shell am start -n ' + PACKAGE + "/" + ACTIVITY)
-        time.sleep(1)
+        print 'adb -s '+self._device+' shell am start -n ' + PACKAGE + "/" + ACTIVITY
+        os.system('adb -s '+self._device+' shell am start -W -n ' + PACKAGE + "/" + ACTIVITY + " -a android.intent.action.MAIN")
 # end

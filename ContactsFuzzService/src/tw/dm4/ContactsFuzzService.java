@@ -93,28 +93,28 @@ public class ContactsFuzzService extends Service {
     }
 
     public void fuzzTable(String display_name) {
-//        String unescape_name = unescapeString(display_name);
-        Integer unescape_name = unescapeInt(display_name);
+        String unescape_name = unescapeString(display_name);
+//        Integer unescape_name = unescapeInt(display_name);
 
         // new raw_contact_id
         ContentValues values = new ContentValues();
-//        Uri rawContactUri = getContentResolver().insert(RawContacts.CONTENT_URI, values);
-//        long rawContactId = ContentUris.parseId(rawContactUri);
+        Uri rawContactUri = getContentResolver().insert(RawContacts.CONTENT_URI, values);
+        long rawContactId = ContentUris.parseId(rawContactUri);
 
-//        values.put(Data.RAW_CONTACT_ID, rawContactId);
-//        values.put(Data.MIMETYPE, StructuredName.CONTENT_ITEM_TYPE);
-//        values.put(StructuredName.DISPLAY_NAME, unescape_name);
-        values.put("number","0919978660");
-        values.put("date","1338549867543");
-        values.put("duration",unescape_name);
-        values.put("type",2);
-        values.put("new",1);
+        values.put(Data.RAW_CONTACT_ID, rawContactId);
+        values.put(Data.MIMETYPE, StructuredName.CONTENT_ITEM_TYPE);
+        values.put(StructuredName.DISPLAY_NAME, unescape_name);
+//        values.put("number","0919978660");
+//        values.put("date","1338549867543");
+//        values.put("duration",unescape_name);
+//        values.put("type",2);
+//        values.put("new",1);
 
-//        getContentResolver().insert(Data.CONTENT_URI, values);
-        getContentResolver().insert(Uri.parse("content://call_log/calls"), values);
+        getContentResolver().insert(Data.CONTENT_URI, values);
+//        getContentResolver().insert(Uri.parse("content://call_log/calls"), values);
 
         // log
-//        Log.d(LOG_TAG, "RAW_CONTACT_ID: " + rawContactId);
+        Log.d(LOG_TAG, "RAW_CONTACT_ID: " + rawContactId);
         Log.d(LOG_TAG, "DISPLAY_NAME: " + unescape_name);
     }
 
