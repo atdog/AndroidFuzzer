@@ -55,7 +55,8 @@
 
     <Agent name="LocalAgent" location="http://127.0.0.1:9000">
        <Monitor class="fuzzIntentDataMonitor.FuzzIntentDataMonitor">
-           <Param name="monkeyport" value="8888" />
+           <Param name="monkeyport" value="1111" />
+            <Param name="device" value="emulator-5554" />
        </Monitor>
     
     </Agent>
@@ -73,9 +74,10 @@
 <!--        <Publisher name="myPublisher" class="fuzzIntentData.FuzzIntentData" />-->
         <Publisher name="myPublisher" class="fuzzIntentData.FuzzIntentData" >
             <Param name="filename" value="test" />
-            <Param name="package"  value="com.mywoo.clog" />
-            <Param name="activity" value="com.mywoo.clog.Clog" />
-            <Param name="port" value="7777" />
+            <Param name="package"  value="com.alexyu.android.ice" />
+            <Param name="activity" value="com.alexyu.android.ice.Urgence" />
+            <Param name="port" value="10001" />
+            <Param name="device" value="emulator-5554" />
         </Publisher>
 	</Test>
 

@@ -33,6 +33,6 @@ tools/dex2jar-0.0.9.8/dex2jar.sh "$DIR_NAME/classes.dex" || (echo "[0;31m=====>
 #####
 # Use soot.jar to generate dot file for constructing CFG
 #####
-echo "[0;32m=====> soot[0m"
-java -jar tools/soot-2.5.0.jar -dump-cfg jb.uce -cp $SOOT_CLASSPATH -process-path $DIR_NAME -d $DIR_NAME/sootOutput
+#echo "[0;32m=====> soot[0m"
+#java -jar tools/soot-2.5.0.jar -dump-cfg jb.uce -cp $SOOT_CLASSPATH -process-path $DIR_NAME -d $DIR_NAME/sootOutput
 

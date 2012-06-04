@@ -55,7 +55,7 @@ class FuzzIntentData(Publisher):
     yet.
     '''
 
-    def __init__(self, filename, package, activity, port):
+    def __init__(self, filename, package, activity, port, device):
         '''
         @type   filename: string
         @param  filename: Filename to write to
@@ -67,10 +67,11 @@ class FuzzIntentData(Publisher):
         self._package = package
         self._activity = activity
         self._port = int(port)
+        self._device = device
         self.setFilename(filename)
         # initial fuzztableService
-        os.system("adb shell am startservice -a 'tw.dm4.CONTACTSFUZZ' --es 'port' '"+port+"'")
-        os.system("adb forward tcp:"+port+" tcp:"+port)
+        os.system("adb -s "+device+" shell am startservice -a 'tw.dm4.CONTACTSFUZZ' --es 'port' '"+port+"'")
+        os.system("adb -s "+device+" forward tcp:"+port+" tcp:"+port)
 
     def getFilename(self):
         '''
@@ -159,9 +160,9 @@ class FuzzIntentData(Publisher):
         PACKAGE = self._package
         ACTIVITY = self._activity
         # kill process first
-        os.system('adb shell am startservice -a "org.atdog.stopprocess.KILL" --es "package" "'+ PACKAGE +'"')
+        os.system('adb -s '+self._device+' shell am startservice -a "org.atdog.stopprocess.KILL" --es "package" "'+ PACKAGE +'"')
         # monkey runner is used to start activity
         #os.system("monkeyrunner executeApp.py " + PACKAGE +" " + ACTIVITY);
-        os.system('adb shell am start -n ' + PACKAGE + "/" + ACTIVITY)
+        os.system('adb -s '+self._device+' shell am start -n ' + PACKAGE + "/" + ACTIVITY)
         time.sleep(1)
 # end
