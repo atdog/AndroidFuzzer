@@ -139,14 +139,23 @@ class FuzzIntentData(Publisher):
 
         return self._fd.read()
     def call(self, method, args):
-        #fuzz_string = re.sub(r'([a-zA-Z0-9]{2})', r'\\x\1', args[0].encode('hex'))
-        #host = '127.0.0.1'
-        #port = 7777
-        #s = socket(AF_INET, SOCK_STREAM)
-        #s.connect((host, port))
-        #s.send(fuzz_string + "\n")
-        #s.makefile().readline()
-        #s.close()
-        #print fuzz_string
+        # write data
+        fuzz_string = re.sub(r'([a-zA-Z0-9]{2})', r'\\x\1', args[0].encode('hex'))
+        host = '127.0.0.1'
+        port = 7777
+        s = socket(AF_INET, SOCK_STREAM)
+        s.connect((host, port))
+        s.send(fuzz_string + "\n")
+        s.makefile().readline()
+        s.close()
+        print fuzz_string
         print args
+        PACKAGE = "com.mywoo.clog"
+        ACTIVITY = "com.mywoo.clog.Clog"
+        # kill process first
+        os.system('adb shell am startservice -a "org.atdog.stopprocess.KILL" --es "package" "'+ PACKAGE +'"')
+        # monkey runner is used to start activity
+        #os.system("monkeyrunner executeApp.py " + PACKAGE +" " + ACTIVITY);
+        os.system('adb shell am start -n ' + PACKAGE + "/" + ACTIVITY)
+        time.sleep(1)
 # end

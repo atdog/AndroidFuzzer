@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+      package="org.atdog.stopprocess"
+      android:versionCode="1"
+      android:versionName="1.0"
+      android:sharedUserId="android.uid.system" >
+    <application android:label="@string/app_name" >
+        <service android:name="StopProcessService"
+                  android:label="@string/app_name">
+            <intent-filter>
+                <action android:name="org.atdog.stopprocess.KILL" />
+            </intent-filter>
+        </service>
+    </application>
+
+    <uses-permission android:name="android.permission.FORCE_STOP_PACKAGES"/>
+</manifest> 

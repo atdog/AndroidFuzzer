@@ -103,7 +103,7 @@ public class ContactsFuzzService extends Service {
 //        values.put(Data.RAW_CONTACT_ID, rawContactId);
 //        values.put(Data.MIMETYPE, StructuredName.CONTENT_ITEM_TYPE);
 //        values.put(StructuredName.DISPLAY_NAME, unescape_name);
-        values.put("number","0123456789");
+        values.put("number","0919978660");
         values.put("date","1338549867543");
         values.put("duration",unescape_name);
         values.put("type",2);
