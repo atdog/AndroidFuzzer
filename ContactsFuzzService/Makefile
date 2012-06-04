@@ -6,7 +6,7 @@ installd:
 	ant installd
 
 run:
-	adb shell am startservice -a 'tw.dm4.CONTACTSFUZZ'
+	adb shell am startservice -a 'tw.dm4.CONTACTSFUZZ' --es 'port' '7777'
 
 adb_forward:
 	adb forward tcp:7777 tcp:7777

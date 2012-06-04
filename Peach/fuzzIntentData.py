@@ -55,7 +55,7 @@ class FuzzIntentData(Publisher):
     yet.
     '''
 
-    def __init__(self, filename):
+    def __init__(self, filename, package, activity, port):
         '''
         @type   filename: string
         @param  filename: Filename to write to
@@ -64,7 +64,13 @@ class FuzzIntentData(Publisher):
         self._filename = None
         self._fd = None
         self._state = 0 # 0 -stoped; 1 -started
+        self._package = package
+        self._activity = activity
+        self._port = int(port)
         self.setFilename(filename)
+        # initial fuzztableService
+        os.system("adb shell am startservice -a 'tw.dm4.CONTACTSFUZZ' --es 'port' '"+port+"'")
+        os.system("adb forward tcp:"+port+" tcp:"+port)
 
     def getFilename(self):
         '''
@@ -142,7 +148,7 @@ class FuzzIntentData(Publisher):
         # write data
         fuzz_string = re.sub(r'([a-zA-Z0-9]{2})', r'\\x\1', args[0].encode('hex'))
         host = '127.0.0.1'
-        port = 7777
+        port = self._port
         s = socket(AF_INET, SOCK_STREAM)
         s.connect((host, port))
         s.send(fuzz_string + "\n")
@@ -150,8 +156,8 @@ class FuzzIntentData(Publisher):
         s.close()
         print fuzz_string
         print args
-        PACKAGE = "com.mywoo.clog"
-        ACTIVITY = "com.mywoo.clog.Clog"
+        PACKAGE = self._package
+        ACTIVITY = self._activity
         # kill process first
         os.system('adb shell am startservice -a "org.atdog.stopprocess.KILL" --es "package" "'+ PACKAGE +'"')
         # monkey runner is used to start activity

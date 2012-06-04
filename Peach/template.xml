@@ -55,7 +55,7 @@
 
     <Agent name="LocalAgent" location="http://127.0.0.1:9000">
        <Monitor class="fuzzIntentDataMonitor.FuzzIntentDataMonitor">
-    
+           <Param name="monkeyport" value="8888" />
        </Monitor>
     
     </Agent>
@@ -63,7 +63,7 @@
 	<!-- Our Test element will link together our state model and publisher -->
 	<Test name="HelloWorldTest">
 		<StateModel ref="State"/>
-        <Agent ref="LocalAgent"/>
+       <Agent ref="LocalAgent"/>
 		<!--
 			The publisher we select will determin what the actions
 			in our state model actually do.  For this example we are
@@ -73,6 +73,9 @@
 <!--        <Publisher name="myPublisher" class="fuzzIntentData.FuzzIntentData" />-->
         <Publisher name="myPublisher" class="fuzzIntentData.FuzzIntentData" >
             <Param name="filename" value="test" />
+            <Param name="package"  value="com.mywoo.clog" />
+            <Param name="activity" value="com.mywoo.clog.Clog" />
+            <Param name="port" value="7777" />
         </Publisher>
 	</Test>
 

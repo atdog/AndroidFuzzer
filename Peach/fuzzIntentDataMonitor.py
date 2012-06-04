@@ -41,6 +41,7 @@ import re
 import os
 from Peach.agent import Monitor
 from subprocess import *
+from socket import *
 
 
 class  FuzzIntentDataMonitor(Monitor):
@@ -56,6 +57,15 @@ class  FuzzIntentDataMonitor(Monitor):
         # Our name for this monitor
         self._name = None
         self._exception = {}
+        # set monkey server
+        host = '127.0.0.1'
+
+        portStr = re.sub(r'\'\'\'([0-9]*)\'\'\'', r'\1', args['monkeyport'])
+        port = int(portStr)
+        os.system("adb forward tcp:"+portStr+" tcp:"+portStr)
+        self._s = socket(AF_INET, SOCK_STREAM)
+        self._s.connect((host, port))
+        
 
     def OnTestStarting(self):
         '''
@@ -104,6 +114,10 @@ class  FuzzIntentDataMonitor(Monitor):
         '''
         Called when a fault was detected.
         '''
+        time.sleep(1)
+        command = "tap 300 600"
+        self._s.send(command + "\n")
+        self._s.makefile().readline()
         pass
 
     def OnShutdown(self):

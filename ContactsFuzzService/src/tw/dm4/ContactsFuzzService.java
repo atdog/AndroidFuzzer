@@ -25,13 +25,12 @@ public class ContactsFuzzService extends Service {
 
     public static final String LOG_TAG = "dm4";
     public ServerSocket serverSocket;
-    public final int serverPort = 7777;
+    public int serverPort;
 
     @Override
     public void onCreate() {
         super.onCreate();
         Log.d(LOG_TAG, "onCreate");
-        openSocket();
     }
 
     void openSocket() {
@@ -54,6 +53,8 @@ public class ContactsFuzzService extends Service {
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         Log.d(LOG_TAG, "onStartCommand");
+        serverPort = Integer.parseInt(intent.getStringExtra("port"));
+        openSocket();
 
         new Thread(new Runnable() {
             public void run() {

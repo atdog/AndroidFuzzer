@@ -7,3 +7,4 @@ lib/
 bin/
 gen/
 *.sublime*
+.DS_Store
