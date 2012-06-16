@@ -56,7 +56,7 @@
     <Agent name="LocalAgent" location="http://127.0.0.1:9000">
        <Monitor class="fuzzIntentDataMonitor.FuzzIntentDataMonitor">
            <Param name="monkeyport" value="11111" />
-            <Param name="device" value="emulator-5574" />
+            <Param name="device" value="HT169V000139" />
        </Monitor>
     
     </Agent>
@@ -74,10 +74,10 @@
 <!--        <Publisher name="myPublisher" class="fuzzIntentData.FuzzIntentData" />-->
         <Publisher name="myPublisher" class="fuzzIntentData.FuzzIntentData" >
             <Param name="filename" value="test" />
-            <Param name="package"  value="com.alexyu.android.ice" />
-            <Param name="activity" value="com.alexyu.android.ice.Urgence" />
+            <Param name="package"  value="com.jbapps.contact" />
+            <Param name="activity" value="com.jbapps.contact.ui.ContactListLaunch" />
             <Param name="port" value="20001" />
-            <Param name="device" value="emulator-5574" />
+            <Param name="device" value="HT169V000139" />
         </Publisher>
 	</Test>
 

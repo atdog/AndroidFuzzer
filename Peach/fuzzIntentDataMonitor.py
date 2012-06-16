@@ -64,9 +64,9 @@ class  FuzzIntentDataMonitor(Monitor):
         device = re.sub(r'\'\'\'(.*)\'\'\'', r'\1', args['device'])
         self._device = device
         port = int(portStr)
-        os.system("adb -s "+device+" forward tcp:"+portStr+" tcp:"+portStr)
-        self._s = socket(AF_INET, SOCK_STREAM)
-        self._s.connect((host, port))
+        #os.system("adb -s "+device+" forward tcp:"+portStr+" tcp:"+portStr)
+        #self._s = socket(AF_INET, SOCK_STREAM)
+        #self._s.connect((host, port))
         
 
     def OnTestStarting(self):
@@ -116,10 +116,10 @@ class  FuzzIntentDataMonitor(Monitor):
         '''
         Called when a fault was detected.
         '''
-        time.sleep(1)
-        command = "tap 300 600"
-        self._s.send(command + "\n")
-        self._s.makefile().readline()
+        #time.sleep(1)
+        #command = "tap 300 600"
+        #self._s.send(command + "\n")
+        #self._s.makefile().readline()
         pass
 
     def OnShutdown(self):

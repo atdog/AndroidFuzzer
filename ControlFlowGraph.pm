@@ -21,53 +21,41 @@ sub dumpGraph {
 
     my $node = $self->{_root} ;
     my $stack = [];
+    print "Start -> ",$self->{_methodName},"\n";
     dumpNode($node, $stack);
 }
 
-sub dumpNode {
+sub dumpNode{
     #
     #  dumpNode 有問題
     #  若一個function被call過一次以上
     #  其最後一個node的nextNode會有兩個內容
     #  trace 時必須要找上一層call此function的filename做區別
     #
-    my ($node, $stack, $callerFilename, $callerNodeNum) = @_;
+    my ($node, $stack) = @_;
     my @nextNodeArray;
     $node->{_traced} = 1;
     push(@$stack, "$node->{_nodeNum} -> $node->{_label}\n");
-    print "$node->{_nodeNum} -> $node->{_label}   -   ";
+    print "$node->{_nodeNum} -> $node->{_label}\n";
 
     if(defined $node->{_subMethod}) {
-        $nextNodeArray[0] = $node->{_subMethod}->{_root};
-        $callerFilename = $node->{_methodCFG}->{_methodName};
-        $callerNodeNum = $node->{_nodeNum};
-        print "defined $node->{_subMethod}->{_methodName}\n";
-        print "------> $callerFilename:$callerNodeNum\n";
+        print "Start -> ",$node->{_subMethod}->{_methodName},"\n";
+        dumpNode($node->{_subMethod}->{_root}, $stack) if $nextNode->{_traced} == 0;
     } 
-    else {
-        print "notdefined, from nextnode\n";
-        @nextNodeArray = @{$node->{_nextNode}};
-        if($#nextNodeArray == -1) {
-            if(defined $node->{_return}->{"$callerFilename:$callerNodeNum"}) {
-                $nextNodeArray[0] = $node->{_return}->{"$callerFilename:$callerNodeNum"};
+    @nextNodeArray = @{$node->{_nextNode}};
+    if($#nextNodeArray == -1) {
+        for my $elements (@$stack) {
+            if($elements =~ m/query\(.+\)/) {
+                print for @$stack;
+                print "[0;34m===> path end[0m\n";
+                break;
             }
-            else {
-                for my $elements (@$stack) {
-                    if($elements =~ m/query\(.+\)/) {
-                        print for @$stack;
-                        print "[0;34m===> path end[0m\n";
-                        break;
-                    }
-                }
-#                print for @$stack;
-#                print "[0;34m===> path end[0m\n";
-                pop @$stack;
-                return;
-            }
-        } 
-    }
+        }
+        pop @$stack;
+        return;
+    } 
     foreach my $nextNode (@nextNodeArray) {
-        dumpNode($nextNode, $stack, $callerFilename, $callerNodeNum) if $nextNode->{_traced} == 0;
+        dumpNode($nextNode, $stack) if $nextNode->{_traced} == 0;
     }
 }
 
