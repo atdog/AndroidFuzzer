@@ -6,6 +6,8 @@ use ControlFlowNode;
 use XML::Simple;
 use Data::Dumper;
 
+$DB::deep = 8000;
+
 if($#ARGV != 1) {
     print "$0 path preload\n";
     print "\n";
@@ -260,7 +262,7 @@ sub parseMethodDotFile {
             push(@{$node->{_prevNode}}, $node);
             $methodCFG = new ControlFlowGraph($dotFileName,$node,\@nodeArray);
             $node->{_methodCFG} = $methodCFG;
-            $ALL_METHOD_CFG{$dotFileName} = $methodCFG;
+            $ALL_METHOD_CFG->{$dotFileName} = $methodCFG;
         }
         elsif($_ =~ m/.*\"(\d+)\"->\"(\d+)\".*/) {
             push(@{$nodeArray[$1]->{_nextNode}},$nodeArray[$2]);
@@ -269,7 +271,7 @@ sub parseMethodDotFile {
                 my @subMethodNodeArray = @{$nodeArray[$1]->{_subMethod}->{_nodeArray}};
                 for my $subMethodNode (@subMethodNodeArray) {
                     if(not defined $subMethodNode->{_nextNode}[0]) {
-                        print "$1->$2\n";
+                        #print "$1->$2\n";
                         $subMethodNode->{_return}->{"$dotFileName:$1"} = $nodeArray[$2];
                     }
                 }
@@ -302,6 +304,9 @@ sub parseMethodDotFile {
                     else {
                         $classNameOfInvokation = $1;
                     }
+                    # check whether UIrelated - API call occurs
+                    UIEventAPIParser($dotFileName, $1, $methodNameOfInvokation, $parasOfInvokation, \@nodeArray, $nodeNum);
+                    #
                     print "-=-=-=-> invokation: $classNameOfInvokation.$methodNameOfInvokation($parasOfInvokation)\n";
                     if($classNameOfInvokation =~ m/$PACKAGE/) {
                         $subMethodFile = getMethodDot("$classNameOfInvokation",$methodNameOfInvokation,$parasOfInvokation);
@@ -310,10 +315,10 @@ sub parseMethodDotFile {
                             ####
                             # create sub method CFG
                             ####
-                            parseMethodDotFile($classNameOfInvokation, $methodNameOfInvokation, $parasOfInvokation, $subMethodFile) if not exists $ALL_METHOD_CFG{$subMethodFile};
+                            parseMethodDotFile($classNameOfInvokation, $methodNameOfInvokation, $parasOfInvokation, $subMethodFile) if not exists $ALL_METHOD_CFG->{$subMethodFile};
                             if(isRecursive($entryPointClass,$entryPointMethod,$entryPointMethodParas,$classNameOfInvokation,$methodNameOfInvokation,$parasOfInvokation) == 0) {
-                                $nodeArray[$nodeNum]->{_subMethod} = $ALL_METHOD_CFG{$subMethodFile};
-                                push(@{$ALL_METHOD_CFG{$subMethodFile}->{_prevNode}}, $nodeArray[$nodeNum]);
+                                $nodeArray[$nodeNum]->{_subMethod} = $ALL_METHOD_CFG->{$subMethodFile};
+                                push(@{$ALL_METHOD_CFG->{$subMethodFile}->{_prevNode}}, $nodeArray[$nodeNum]);
                             }
 #                            push(@{$ALL_METHOD_CFG{$subMethodFile}->{_nodeArray}[$#{@{$ALL_METHOD_CFG{$subMethodFile}->{_nodeArray}}}]->{_nextNode}}, $nodeArray[$nodeNum]);
                             print "-=-=-=-> subMethod parsing done.\n";
@@ -336,10 +341,13 @@ sub parseMethodDotFile {
                 my $localVar = $1;
                 my $varType = $2;
                 if(exists $methodCFG->{_local}->{$varType}) {
+                    if(isInViewId($dotFileName, $varType)) {
+                        setViewId($dotFileName,$localVar, getViewId($dotFileName, $varType));
+                    }
                     $varType = $methodCFG->{_local}->{$varType};
                     print "-=-=-=-> Found in table: $varType\n";
                 } else {
-                    # rx = a.b.c    variable(or constant)
+                    # a.b.c = xxx  variable(or constant)
                     if($localVar =~ m/^(.*)\.([^.\(\)]*)$/) {
                         my $className = $1;
                         my $fieldName = $2;
@@ -361,9 +369,6 @@ sub parseMethodDotFile {
                     }
                     elsif($localVar =~ m/^(?:label\d+: )?\$?(r)\d+.*$/) {
                         print "-=-=-=-> type: Class\n";
-                        #if(exists $methodCFG->{_local}->{$varType}) {
-                        #    $varType = $methodCFG->{_local}->{$varType};
-                        #} else {
                         if($varType eq '@this') {
                            $varType = "$entryPointClass";
                            print "-=-=-=-> \@this: $varType\n";
@@ -443,6 +448,9 @@ sub parseMethodDotFile {
                         elsif($varType =~ m/^(.*)\.([^.\(\)]*)$/) {
                             my $className = $1;
                             my $fieldName = $2;
+                            if(isInViewId($dotFileName, "$1.$2")) {
+                                setViewId($dotFileName,$localVar, getViewId($dotFileName, "$1.$2"));
+                            }
                             if(exists $methodCFG->{_local}->{$className}) {
                                 $className = $methodCFG->{_local}->{$className};
                             }
@@ -456,7 +464,8 @@ sub parseMethodDotFile {
                             print "-=-=-=-> assign $className.$fieldName to $returnType\n"
                         }
                         # rx = rx.api()
-                        elsif($varType =~ m/^(?:label\d+: )?(?:specialinvoke )?([^\(\)]*)\.([^\.\(\)]*)\((.*)\)$/) {
+                        elsif($varType =~ m/^(?:label\d+: )?(?:specialinvoke )?([^\(\)]*)\.([^\.\(\)]*)\((.*)\)$/) 
+                        {
                             my $parentType = $1;
                             my $apiName = $2;
                             my $parameter = $3;
@@ -465,8 +474,6 @@ sub parseMethodDotFile {
                             if($apiName eq "findViewById") {
                                 setViewId($dotFileName,$localVar,$parameter);
                             }
-                            # check whether UIrelated - API call occurs
-                            UIEventAPIParser($apiName);
                             #
                             print "-=-=-=-> Local var: $parentType\n";
                             if(exists $methodCFG->{_local}->{$parentType}) {
@@ -494,10 +501,10 @@ sub parseMethodDotFile {
                             if( $returnType !~ m/^NotFound-/) {
                                 my $fileName = getMethodDot($className,$apiName,$parasToCheck);
                                 if($fileName !~ m/ERROR/) {
-                                    parseMethodDotFile($className, $apiName,$parasToCheck, $fileName) if not exists $ALL_METHOD_CFG{$fileName};
+                                    parseMethodDotFile($className, $apiName,$parasToCheck, $fileName) if not exists $ALL_METHOD_CFG->{$fileName};
                                     if(isRecursive($entryPointClass,$entryPointMethod,$entryPointMethodParas,$className,$apiName,$parasToCheck) == 0) {
-                                        push(@{$ALL_METHOD_CFG{$fileName}->{_prevNode}}, $nodeArray[$nodeNum]);
-                                        $nodeArray[$nodeNum]->{_subMethod} = $ALL_METHOD_CFG{$fileName};
+                                        push(@{$ALL_METHOD_CFG->{$fileName}->{_prevNode}}, $nodeArray[$nodeNum]);
+                                        $nodeArray[$nodeNum]->{_subMethod} = $ALL_METHOD_CFG->{$fileName};
                                     }
 #                                    push(@{$ALL_METHOD_CFG{$fileName}->{_nodeArray}[$#{@{$ALL_METHOD_CFG{$fileName}->{_nodeArray}}}]->{_nextNode}}, $nodeArray[$nodeNum]);
                                     print "-=-=-=-> subMethod parsing done.\n";
@@ -525,7 +532,6 @@ sub parseMethodDotFile {
     }
     close $FILE;
     print "==== data ====" , "\n";
-    #$methodCFG->dumpGraph;
     print Dumper($methodCFG->{_local});
 
     ###
@@ -535,17 +541,6 @@ sub parseMethodDotFile {
     if($entryPointMethod eq "onCreate" && $entryPointMethodParas eq "android.os.Bundle") {
         $method = "onStart";
         $entryPointMethodParas = "";
-        #$subMethodFile = getMethodDot($entryPointClass,$method,$entryPointMethodParas);
-        #if($subMethodFile !~ /^ERROR$/) {
-        #    parseMethodDotFile($entryPointClass, $method, "", $subMethodFile) if not exists $ALL_METHOD_CFG{$subMethodFile};
-        #    push(@{$ALL_METHOD_CFG{$subMethodFile}->{_prevNode}}, $nodeArray[$endNodeNum]);
-        #    push(@{$nodeArray[$endNodeNum]->{_nextNode}}, $ALL_METHOD_CFG{$subMethodFile}->{_root});
-        #    print "-=-=-=-> subMethod parsing done.\n";
-        #}
-        #else {
-        #    $method = "onResume";
-        #    $entryPointMethodParas = "";
-        #}
     }
     elsif($entryPointMethod eq "onStart" && $entryPointMethodParas eq "") {
         $method = "onResume";
@@ -555,17 +550,30 @@ sub parseMethodDotFile {
         $subMethodFile = getMethodDot($entryPointClass,$method,$entryPointMethodParas);
         print "-=-=-=-> invoke file: $subMethodFile\n";
         if($subMethodFile !~ /^ERROR$/) {
-            parseMethodDotFile($entryPointClass, $method, "", $subMethodFile) if not exists $ALL_METHOD_CFG{$subMethodFile};
-            push(@{$ALL_METHOD_CFG{$subMethodFile}->{_prevNode}}, $nodeArray[$endNodeNum]);
-            push(@{$nodeArray[$endNodeNum]->{_nextNode}}, $ALL_METHOD_CFG{$subMethodFile}->{_root});
+            parseMethodDotFile($entryPointClass, $method, "", $subMethodFile) if not exists $ALL_METHOD_CFG->{$subMethodFile};
+            push(@{$ALL_METHOD_CFG->{$subMethodFile}->{_prevNode}}, $nodeArray[$endNodeNum]);
+            push(@{$nodeArray[$endNodeNum]->{_nextNode}}, $ALL_METHOD_CFG->{$subMethodFile}->{_root});
             print "-=-=-=-> subMethod parsing done.\n";
         }
     }
 }
 
 sub UIEventAPIParser {
-    my($apiName) = @_;
-    if($apiName eq "") {
+    my($dotFileName, $localVar, $apiName, $parasToCheck, $nodeArray, $nodeNum) = @_;
+    my @nodes = @$nodeArray;
+    if(exists $ALL_VIEW_ID->{$dotFileName}->{$localVar}) {
+        if($apiName eq "setAdapter") {
+            my $fileName = getMethodDot($parasToCheck,"instantiateItem","android.view.View,int");
+            if($fileName !~ m/ERROR/) {
+                parseMethodDotFile($parasToCheck, "instantiateItem","android.view.View,int", $fileName) if not exists $ALL_METHOD_CFG->{$fileName};
+                push(@{$ALL_METHOD_CFG->{$fileName}->{_prevNode}}, $nodes[$nodeNum]);
+                $nodes[$nodeNum]->{_subMethod} = $ALL_METHOD_CFG->{$fileName};
+                print "-=-=-=-> subMethod parsing done.\n";
+            }
+            else {
+                print "-------------> [0;31m$className $apiName not found[0m\n";
+            }
+        }
     }
 }
 
@@ -651,7 +659,6 @@ sub parseParas{
         for my $para (@newParas) {
             if(exists $methodCFG->{_local}->{$para}) {
                 # to file mode: translate [Ljava.lang.String;  [I  -> java.lang.String[] int[]
-                #print $methodCFG->{_local}->{$para},"\n";
                 if($methodCFG->{_local}->{$para} =~ m/^(\[+)(.*)$/ && $toFileMode == 1) {
                     my $array = $1;
                     my $arrayType = $2;
@@ -707,11 +714,9 @@ sub methodChecker{
         my $command;
         if($p ne "") {
             $command="adb shell am startservice -a 'lab.mobile.ntu.TYPE_CHECKER' --es 'classname' '$c' --es 'methodname' '$m' --es 'appname' '$APP_PATH_IN_ANDROID' --es 'parameter' '$p'";
-            #$return = `java -jar tools/typeChecker.jar -c '$c' -m '$m' -e '$JARPATH' -p '$p'`;
         } 
         else {
             $command="adb shell am startservice -a 'lab.mobile.ntu.TYPE_CHECKER' --es 'classname' '$c' --es 'methodname' '$m' --es 'appname' '$APP_PATH_IN_ANDROID'";
-            #$return =  `java -jar tools/typeChecker.jar -c '$c' -m '$m' -e '$JARPATH' `;
         }
         $command =~ s/\$/\\\$/g;
         $command =~ s/;/\\;/g;
@@ -731,12 +736,6 @@ sub methodChecker{
             }
         }
         $return =~ s/[\r\n]//g;
-        #if($return =~ m/NotFound-JNI/ && defined $p) {
-        #    $return = `java -jar tools/typeChecker.jar -c '$c' -m '$m' -e '$ANDROID_PATH' -p '$p'`;
-        #}
-        #elsif($return =~ m/NotFound-JNI/ && not defined $p){
-        #    $return = `java -jar tools/typeChecker.jar -c '$c' -m '$m' -e '$ANDROID_PATH'`;
-        #}
         $ALL_METHOD_TYPE{"$c.$m($p)"} = $return;
     }
     return $return;
@@ -763,10 +762,6 @@ sub fieldChecker{
         }
     }
     $return =~ s/[\r\n]//g;
-    #$return = `java -jar tools/typeChecker.jar -c '$c' -f '$f' -e '$JARPATH'`;
-    #if($return =~ m/NotFound-JNI/) {
-    #    $return = `java -jar tools/typeChecker.jar -c '$c' -f '$f' -e '$ANDROID_PATH'`;
-    #}
     return $return;
 }
 
@@ -776,23 +771,6 @@ sub isRecursive {
         if($method eq $newMethod && $paras eq $newParas) {
                 return 1;
         }
-        #else {
-        #    if($method eq "sendMessage" && $paras eq "android.os.Message") {
-        #        return 1;
-        #    }
-        #    elsif($method eq "sendMessageAtFrontOfQueue" && $paras eq "android.os.Message") {
-        #        return 1;
-        #    }
-        #    elsif($method eq "sendMessageAtTime" && $paras eq "android.os.Message,long") {
-        #        return 1;
-        #    }
-        #    elsif($method eq "sendMessageDelayed" && $paras eq "android.os.Message,long") {
-        #        return 1;
-        #    }
-        #    elsif($method eq "start" && $paras eq "") {
-        #        return 1;
-        #    }
-        #}
     }
     return 0;
 }
@@ -923,10 +901,10 @@ sub Main{
 
     print Dumper(%ALL_METHOD_TYPE);
     print "-=-=-=-> All parsed files\n";
-    for my $methodFile (keys %ALL_METHOD_CFG) {
+    for my $methodFile (keys %$ALL_METHOD_CFG) {
         print "$methodFile\n";
     }
-    $ALL_METHOD_CFG{'/Users/atdog/Desktop/ReverseAPK/com.mywoo.clog-59/sootOutput/com.mywoo.clog.Clog/void onCreate(android.os.Bundle)/jb.uce-ExceptionalUnitGraph-0.dot'}->dumpGraph;
+    $ALL_METHOD_CFG->{'/Users/atdog/Desktop/ReverseAPK/com.mywoo.clog-59/sootOutput/com.mywoo.clog.Clog/void onCreate(android.os.Bundle)/jb.uce-ExceptionalUnitGraph-0.dot'}->dumpGraph;
     #$ALL_METHOD_CFG{'/Users/atdog/work/evo/app/HtcDialer/sootOutput/com.android.htcdialer.DialerService/void onCreate()/jb.uce-ExceptionalUnitGraph-0.dot'}->dumpGraph;
     #$ALL_METHOD_CFG{'/Users/atdog/work/evo/app/HtcDialer/sootOutput/com.android.htcdialer.search.SearchablePhone/void <init>(long,int,java.lang.String,java.lang.String)/jb.uce-ExceptionalUnitGraph-0.dot'}->dumpGraph;
 }
