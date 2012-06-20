@@ -2,6 +2,8 @@ package ControlFlowGraph;
 
 use Data::Dumper;
 
+my $PATH_ID = 1;
+
 sub new{
     my $class = shift;
     my $self = {
@@ -10,7 +12,6 @@ sub new{
         _root => shift,
         _prevNode => [],
         _nodeArray => shift,
-        _traced => 0
     };
     bless $self, $class;
     return $self;
@@ -19,13 +20,149 @@ sub new{
 sub dumpGraph {
     my ($self) = @_;
 
-    my $node = $self->{_root} ;
+    # part 1 find all ContentResolver.query() node
+    # part 2 find S -> Q
+    #       choose one path to reach it
+    # part 3 find Q -> T
+    # part 4 combine S->Q->T
+    
     my $stack = [];
+    my $CandidateNodeArray = []; # query node
+    my $CandidatePathArray = []; # S->Q
+    my $AllPathArray = []; # Q->T
+    my $PathToCandidateNode = [];
+    GetRemainPathFromQ($self->{_root}, [], []);
+    #FindAllQueryAPINode($self->{_root}, $CandidateNodeArray, $CandidatePathArray, $PathToCandidateNode); 
+    #GetRemainPath($CandidateNodeArray,$AllPathArray);
+    
+
     print "Start -> ",$self->{_methodName},"\n";
-    dumpNode($node, $stack);
+    #dumpNode($node, $stack);
 }
 
-sub dumpNode{
+sub GetRemainPath {
+    my ($CandidateNodeArray, $AllPathArray) = @_;
+    for $candidateNode (@$CandidateNodeArray) {
+        my $path = [];
+        GetRemainPathFromQ($candidateNode, $path, []);
+    }
+}
+
+sub GetRemainPathFromQ {
+    my ($node, $path, $returnStack) = @_;
+    # stop condition
+    #  1. find circle
+    #  2. no next node
+    $node->{_pathID} = $PATH_ID;
+    push @$path, $node;
+    print "$node->{_nodeNum}: $node->{_label} nextNode:$#{$node->{_nextNode}}, nextUINode: $#{$node->{_nextUINode}}, file:$node->{_methodCFG}->{_methodName}\n";
+    # check the stop condition
+    if($#{$node->{_nextNode}} == -1 && $#{$node->{_nextUINode}} == -1 && $#{$returnStack} == -1) {
+        # find the end point
+        # dump and save the candidate node
+        for my $nodeInPath (@$path) {
+            if($nodeInPath->{_label} =~ m/\.query\(.+\)/) {
+                print "^[[0;34m===> path start^[[0m\n";
+                print "$_->{_nodeNum}: $_->{_label}\n" for @$path;
+                print "^[[0;34m===> path end^[[0m\n";
+                break;
+            }
+        }
+        $PATH_ID ++;
+        return;
+    }
+    # submethod call 
+    my $nextNodeArray;
+    if($#{$node->{_nextNode}} == -1 && $#{$returnStack} > -1) {
+        $lastReturn = pop @$returnStack;
+        push @$nextNodeArray, @$lastReturn;
+    }
+    else {
+        if(defined $node->{_subMethod} && not defined $node->{_subMethodUIEvent} && $node->{_subMethod}->{_root}->{_pathID} < $PATH_ID) {
+            push @$nextNodeArray, $node->{_subMethod}->{_root};
+            push @$returnStack, $node->{_nextNode};
+        } 
+        else {
+            $nextNodeArray = GetNextNodeArray($node, 0);
+        }
+    }
+    # trick
+    # if nextNodeArray is empty, then we pop return node from returnStack
+    if($#{$nextNodeArray} == -1) {
+        $lastReturn = pop @$returnStack;
+        push @$nextNodeArray, @$lastReturn;
+    }
+    # include the condition - no next node
+    # will be an array reference
+    for my $nextNode (@$nextNodeArray) {
+        # include the condition - circle found
+        GetRemainPathFromQ($nextNode, $path, $returnStack) if $nextNode->{_pathID} < $PATH_ID;
+        pop @$path;
+    }
+}
+
+sub FindAllQueryAPINode {
+    my ($node, $CandidateNodeArray, $CandidatePathArray, $PathToCandidateNode) = @_;
+
+    # stop condition
+    #  1. find circle
+    #  2. no next node
+    $node->{_scanQueryID} = 1;
+    push @$PathToCandidateNode, $node;
+    # check the label is 'ContentResolver.query' api or not
+    if($node->{_label} =~ m/\.query\(.+\)/) {
+        push @{$CandidateNodeArray}, $node;
+        # find the end point
+        # dump and save the candidate node
+        my @path = @$PathToCandidateNode; # this will copy the array to @path
+        push @$CandidatePathArray, \@path;
+        #print "^[[0;34m===> path start^[[0m\n";
+        #print "$_->{_nodeNum}: $_->{_label}\n" for @$PathToCandidateNode;
+        #print "^[[0;34m===> path end^[[0m\n";
+        return;
+    }
+    # include the condition - no next node
+    # will be an array reference
+    my $nextNodeArray = GetNextNodeArray($node,1);
+    for my $nextNode (@{$nextNodeArray}) {
+        # include the condition - circle found
+        FindAllQueryAPINode($nextNode, $CandidateNodeArray, $CandidatePathArray, $PathToCandidateNode) if $nextNode->{_scanQueryID} == 0;
+        pop @$PathToCandidateNode;
+    }
+}
+
+sub GetNextNodeArray {
+    my ($node, $getSubmethod) = @_;
+
+    # next node
+    my $nextNodeArray = $node->{_nextNode};
+    my $nextUINodeArray = $node->{_nextUINode};
+
+    # submethod call 
+    if($getSubmethod == 1) {
+        if(defined $node->{_subMethod} && not defined $node->{_subMethodUIEvent}) {
+            push @{$nextNodeArray}, $node->{_subMethod}->{_root};
+        } 
+    }
+
+    # event callback function 
+    if($#nextUINodeArray > -1) {
+        for my $UINodeHash (@{$node->{_nextUINode}}) {
+            push @{$nextNodeArray}, $UINodeHash->{node};
+        }
+    }
+
+    return $nextNodeArray;
+}
+
+sub dumpNode {
+    my ($node, $stack) = @_;
+
+    #Stop Condition
+    # 1. circle found
+}
+
+sub dumpNodeOld{
     #
     #  dumpNode 有問題
     #  若一個function被call過一次以上
@@ -34,17 +171,19 @@ sub dumpNode{
     #
     my ($node, $stack) = @_;
     my @nextNodeArray;
-    $node->{_traced} = 1;
+    # check circle first
+
     #push(@$stack, "$node->{_nodeNum} -> $node->{_label}\n");
     push(@$stack, $node);
     #print "$node->{_nodeNum} -> $node->{_label}\n";
 
-    if(defined $node->{_subMethod}) {
+    if(defined $node->{_subMethod} && not defined $node->{_subMethodUIEvent}) {
         #print "Start -> ",$node->{_subMethod}->{_methodName},"\n";
-        dumpNode($node->{_subMethod}->{_root}, $stack) if $nextNode->{_traced} == 0;
+        dumpNode($node->{_subMethod}->{_root}, $stack);
     } 
     @nextNodeArray = @{$node->{_nextNode}};
-    if($#nextNodeArray == -1) {
+    @nextUINodeArray = @{$node->{_nextUINode}};
+    if($#nextNodeArray == -1 && $#nextUINodeArray == -1 && not defined $node->{_return}) {
         for my $elements (@$stack) {
             if($elements->{_label} =~ m/\.query\(.+\)/) {
                 # conditional path building - start
@@ -73,8 +212,13 @@ sub dumpNode{
         pop @$stack;
         return;
     } 
+    elsif($#nextNodeArray == -1 && $#nextUINodeArray > -1) {
+        for my $UINodeHash (@{$node->{_nextUINode}}) {
+            dumpNode($UINodeHash->{node}, $stack) ;
+        }
+    }
     foreach my $nextNode (@nextNodeArray) {
-        dumpNode($nextNode, $stack) if $nextNode->{_traced} == 0;
+        dumpNode($nextNode, $stack) ;
     }
 }
 
@@ -103,7 +247,11 @@ sub purePath {
             }
         }
     }
-    print "$_->{_label}: $_->{_methodCFG}->{_methodName}\n" for @conditionalPath;
+    for my $UINode (@conditionalPath) {
+        #if(defined $UINode->{_nextUINode}[]) {
+        #}
+        print "$UINode->{_label}: $UINode->{_methodCFG}->{_methodName}\n";
+    }
 }
 
 1;

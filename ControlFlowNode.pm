@@ -5,11 +5,15 @@ sub new{
     my $self = {
         _prevNode => [],
         _nextNode => [],
+        _nextUINode => [],
         _nodeNum => shift,
         _label => shift,
         _subMethod => undef,
+        _subMethodUIEvent => undef,
         _methodCFG => undef,
-        _return => {}
+        _return => undef,
+        _pathID => 0,
+        _scanQueryID => 0
     };
     bless $self, $class;
     return $self;

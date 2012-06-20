@@ -81,6 +81,7 @@ my %ENTRY_POINT = (
 my %ALL_VIEW_ID = ();
 my %ALL_METHOD_CFG = ();
 my %ALL_METHOD_TYPE = ();
+my %ALL_UI_EVENT = ();
 my $DIR_PATH = $APK_FILE_PATH;
 my $APK_FILE_NAME = $APK_FILE_PATH;
 my $APP_PATH_IN_ANDROID;
@@ -236,7 +237,7 @@ sub parseDotFileFromEntryPoint {
                 }
                 $fileName = getMethodDot($entryPoint,$ENTRY_POINT{$comName}[$j]->{name},$ENTRY_POINT{$comName}[$j]->{paras});
                 if($fileName !~ m/ERROR/) {
-                    parseMethodDotFile($entryPoint, $ENTRY_POINT{$comName}[$j]->{name},$ENTRY_POINT{$comName}[$j]->{paras}, $fileName);
+                    parseMethodDotFile($entryPoint, $entryPoint, $ENTRY_POINT{$comName}[$j]->{name},$ENTRY_POINT{$comName}[$j]->{paras}, $fileName);
                 }
                 else {
                     print "-------------> [0;31m$classPath $ENTRY_POINT{$comName}[$j]->{name} not found[0m\n";
@@ -246,7 +247,7 @@ sub parseDotFileFromEntryPoint {
     }
 }
 sub parseMethodDotFile {
-    my ($entryPointClass, $entryPointMethod, $entryPointMethodParas, $dotFileName) = @_;
+    my ($activityName, $entryPointClass, $entryPointMethod, $entryPointMethodParas, $dotFileName) = @_;
     ###
     # parse the full fileName
     ###
@@ -267,9 +268,8 @@ sub parseMethodDotFile {
         elsif($_ =~ m/.*\"(\d+)\"->\"(\d+)\".*/) {
             push(@{$nodeArray[$1]->{_nextNode}},$nodeArray[$2]);
             push(@{$nodeArray[$2]->{_prevNode}},$nodeArray[$1]);
-            if(defined $nodeArray[$1]->{_subMethod}) {
-                my @subMethodNodeArray = @{$nodeArray[$1]->{_subMethod}->{_nodeArray}};
-                for my $subMethodNode (@subMethodNodeArray) {
+            if(defined $nodeArray[$1]->{_subMethod} and not defined $nodeArray[$1]->{_subMethodUIEvent}) {
+                for my $subMethodNode (@{$nodeArray[$1]->{_subMethod}->{_nodeArray}}) {
                     if(not defined $subMethodNode->{_nextNode}[0]) {
                         #print "$1->$2\n";
                         $subMethodNode->{_return}->{"$dotFileName:$1"} = $nodeArray[$2];
@@ -305,7 +305,7 @@ sub parseMethodDotFile {
                         $classNameOfInvokation = $1;
                     }
                     # check whether UIrelated - API call occurs
-                    UIEventAPIParser($dotFileName, $1, $methodNameOfInvokation, $parasOfInvokation, \@nodeArray, $nodeNum);
+                    UIEventAPIParser($activityName, $dotFileName, $1, $methodNameOfInvokation, $parasOfInvokation, \@nodeArray, $nodeNum);
                     #
                     print "-=-=-=-> invokation: $classNameOfInvokation.$methodNameOfInvokation($parasOfInvokation)\n";
                     if($classNameOfInvokation =~ m/$PACKAGE/) {
@@ -315,7 +315,7 @@ sub parseMethodDotFile {
                             ####
                             # create sub method CFG
                             ####
-                            parseMethodDotFile($classNameOfInvokation, $methodNameOfInvokation, $parasOfInvokation, $subMethodFile) if not exists $ALL_METHOD_CFG->{$subMethodFile};
+                            parseMethodDotFile($activityName, $classNameOfInvokation, $methodNameOfInvokation, $parasOfInvokation, $subMethodFile) if not exists $ALL_METHOD_CFG->{$subMethodFile};
                             if(isRecursive($entryPointClass,$entryPointMethod,$entryPointMethodParas,$classNameOfInvokation,$methodNameOfInvokation,$parasOfInvokation) == 0) {
                                 $nodeArray[$nodeNum]->{_subMethod} = $ALL_METHOD_CFG->{$subMethodFile};
                                 push(@{$ALL_METHOD_CFG->{$subMethodFile}->{_prevNode}}, $nodeArray[$nodeNum]);
@@ -329,7 +329,7 @@ sub parseMethodDotFile {
                     }
                 }
             }
-            elsif($statement =~ m/^(?:label\d+: )?return (.*)$/) {
+            elsif($statement =~ m/^(?:label\d+: )?return(.*)$/) {
                 $endNodeNum = $nodeNum;
             }
             ###
@@ -363,7 +363,45 @@ sub parseMethodDotFile {
                     }
                     # primitive data type
                     elsif($localVar =~ m/^(?:label\d+: )?\$?(f|l|b|i|z|c)\d+.*$/) {
-                        $varType = $JIMPLE_PRIMITIVE_TYPE{$1};
+                        my $priVar = $1;
+                        if($varType =~ m/^(?:label\d+: )?(?:specialinvoke )?([^\(\)]*)\.([^\.\(\)]*)\((.*)\)$/){
+                            my $parentType = $1;
+                            my $apiName = $2;
+                            my $parameter = $3;
+                            my $className;
+                            # check whether the view appear
+                            if($apiName eq "findViewById") {
+                                setViewId($dotFileName,$localVar,$parameter);
+                            }
+                            #
+                            print "-=-=-=-> Local var: $parentType\n";
+                            if(exists $methodCFG->{_local}->{$parentType}) {
+                                $className = $methodCFG->{_local}->{$parentType};
+                            }
+                            # rx = classname.api()
+                            elsif($parentType =~ m/^[a-zA-Z0-9\.\$]*$/) {
+                                    $className = $parentType;
+                            }
+                            # parse parameter
+                            my $parasToCheck = parseParas($methodCFG,$parameter,0);
+                            print "-=-=-=-> className: $className\n";
+                            print "-=-=-=-> apiName: $apiName($parameter)\n";
+
+                            my $fileName = getMethodDot($className,$apiName,$parasToCheck);
+                            if($fileName !~ m/ERROR/) {
+                                parseMethodDotFile($activityName, $className, $apiName,$parasToCheck, $fileName) if not exists $ALL_METHOD_CFG->{$fileName};
+                                if(isRecursive($entryPointClass,$entryPointMethod,$entryPointMethodParas,$className,$apiName,$parasToCheck) == 0) {
+                                    push(@{$ALL_METHOD_CFG->{$fileName}->{_prevNode}}, $nodeArray[$nodeNum]);
+                                    $nodeArray[$nodeNum]->{_subMethod} = $ALL_METHOD_CFG->{$fileName};
+                                }
+#                                    push(@{$ALL_METHOD_CFG{$fileName}->{_nodeArray}[$#{@{$ALL_METHOD_CFG{$fileName}->{_nodeArray}}}]->{_nextNode}}, $nodeArray[$nodeNum]);
+                                print "-=-=-=-> subMethod parsing done.\n";
+                            }
+                            else {
+                                print "-------------> [0;31m$className $apiName not found[0m\n";
+                            }
+                        }
+                        $varType = $JIMPLE_PRIMITIVE_TYPE{$priVar};
                         print "-=-=-=-> primitive data type\n";
                         print "-=-=-=-> type: $varType\n";
                     }
@@ -501,7 +539,7 @@ sub parseMethodDotFile {
                             if( $returnType !~ m/^NotFound-/) {
                                 my $fileName = getMethodDot($className,$apiName,$parasToCheck);
                                 if($fileName !~ m/ERROR/) {
-                                    parseMethodDotFile($className, $apiName,$parasToCheck, $fileName) if not exists $ALL_METHOD_CFG->{$fileName};
+                                    parseMethodDotFile($activityName, $className, $apiName,$parasToCheck, $fileName) if not exists $ALL_METHOD_CFG->{$fileName};
                                     if(isRecursive($entryPointClass,$entryPointMethod,$entryPointMethodParas,$className,$apiName,$parasToCheck) == 0) {
                                         push(@{$ALL_METHOD_CFG->{$fileName}->{_prevNode}}, $nodeArray[$nodeNum]);
                                         $nodeArray[$nodeNum]->{_subMethod} = $ALL_METHOD_CFG->{$fileName};
@@ -548,24 +586,51 @@ sub parseMethodDotFile {
     }
     if($method ne "") {
         $subMethodFile = getMethodDot($entryPointClass,$method,$entryPointMethodParas);
+        if($method eq "onStart" && $subMethodFile =~ m/^ERROR$/) {
+            $subMethodFile = getMethodDot($entryPointClass,"onResume",$entryPointMethodParas);
+        }
         print "-=-=-=-> invoke file: $subMethodFile\n";
-        if($subMethodFile !~ /^ERROR$/) {
-            parseMethodDotFile($entryPointClass, $method, "", $subMethodFile) if not exists $ALL_METHOD_CFG->{$subMethodFile};
+        if($subMethodFile !~ m/^ERROR$/) {
+            parseMethodDotFile($activityName, $entryPointClass, $method, "", $subMethodFile) if not exists $ALL_METHOD_CFG->{$subMethodFile};
             push(@{$ALL_METHOD_CFG->{$subMethodFile}->{_prevNode}}, $nodeArray[$endNodeNum]);
             push(@{$nodeArray[$endNodeNum]->{_nextNode}}, $ALL_METHOD_CFG->{$subMethodFile}->{_root});
             print "-=-=-=-> subMethod parsing done.\n";
+        }
+        # activity initial finish
+        # add ui event branch
+        for $UIEventHash (@{$ALL_UI_EVENT->{$activityName}}) {
+            # relate to sub UIEventAPIParser
+            my $UINode = $UIEventHash->{node}->{_subMethod}->{_root};
+            my $UIEvent = $UIEventHash->{event};
+            my $UIView = $UIEventHash->{node}->{_subMethodUIEvent};
+            push(@{$nodeArray[$endNodeNum]->{_nextUINode}}, {node=>$UINode, event=>$UIEvent, view=>$UIView});
         }
     }
 }
 
 sub UIEventAPIParser {
-    my($dotFileName, $localVar, $apiName, $parasToCheck, $nodeArray, $nodeNum) = @_;
+    my($activityName, $dotFileName, $localVar, $apiName, $parasToCheck, $nodeArray, $nodeNum) = @_;
     my @nodes = @$nodeArray;
     if(exists $ALL_VIEW_ID->{$dotFileName}->{$localVar}) {
+        my $newMethod = "";
+        my $newParas = "";
+        # parse api
         if($apiName eq "setAdapter") {
-            my $fileName = getMethodDot($parasToCheck,"instantiateItem","android.view.View,int");
+            $newMethod = "instantiateItem";
+            $newParas = "android.view.View,int";
+        }
+        elsif($apiName eq "setOnClickListener") {
+            $newMethod = "onClick";
+            $newParas = "android.view.View";
+            # this mean u must fire the event click to toggle this subMethod(onClick)
+            $nodes[$nodeNum]->{_subMethodUIEvent} = $ALL_VIEW_ID->{$dotFileName}->{$localVar};
+            push(@{$ALL_UI_EVENT->{$activityName}}, {node=>$nodes[$nodeNum],event=>"click"});
+        }
+        # parse dot file
+        if($newMethod ne ""){ 
+            my $fileName = getMethodDot($parasToCheck,$newMethod,$newParas);
             if($fileName !~ m/ERROR/) {
-                parseMethodDotFile($parasToCheck, "instantiateItem","android.view.View,int", $fileName) if not exists $ALL_METHOD_CFG->{$fileName};
+                parseMethodDotFile($activityName, $parasToCheck, $newMethod, $newParas, $fileName) if not exists $ALL_METHOD_CFG->{$fileName};
                 push(@{$ALL_METHOD_CFG->{$fileName}->{_prevNode}}, $nodes[$nodeNum]);
                 $nodes[$nodeNum]->{_subMethod} = $ALL_METHOD_CFG->{$fileName};
                 print "-=-=-=-> subMethod parsing done.\n";
