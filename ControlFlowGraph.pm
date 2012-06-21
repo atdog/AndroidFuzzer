@@ -76,11 +76,13 @@ sub GetRemainPathFromQ {
     if($#{$node->{_nextNode}} == -1 && $#{$returnStack} > -1) {
         $lastReturn = pop @$returnStack;
         push @$nextNodeArray, @$lastReturn;
+        print "Return call - return stack pop\n";
     }
     else {
-        if(defined $node->{_subMethod} && not defined $node->{_subMethodUIEvent} && $node->{_subMethod}->{_root}->{_pathID} < $PATH_ID) {
+        if(defined $node->{_subMethod} && ( not defined $node->{_subMethodUIEvent} )&& $node->{_subMethod}->{_root}->{_pathID} < $PATH_ID) {
             push @$nextNodeArray, $node->{_subMethod}->{_root};
             push @$returnStack, $node->{_nextNode};
+            print "Submethod Call - return stack push\n";
         } 
         else {
             $nextNodeArray = GetNextNodeArray($node, 0);
@@ -88,10 +90,10 @@ sub GetRemainPathFromQ {
     }
     # trick
     # if nextNodeArray is empty, then we pop return node from returnStack
-    if($#{$nextNodeArray} == -1) {
-        $lastReturn = pop @$returnStack;
-        push @$nextNodeArray, @$lastReturn;
-    }
+#    if($#{$nextNodeArray} == -1) {
+#        $lastReturn = pop @$returnStack;
+#        push @$nextNodeArray, @$lastReturn;
+#    }
     # include the condition - no next node
     # will be an array reference
     for my $nextNode (@$nextNodeArray) {
@@ -140,7 +142,7 @@ sub GetNextNodeArray {
 
     # submethod call 
     if($getSubmethod == 1) {
-        if(defined $node->{_subMethod} && not defined $node->{_subMethodUIEvent}) {
+        if(defined $node->{_subMethod} && (not defined $node->{_subMethodUIEvent})) {
             push @{$nextNodeArray}, $node->{_subMethod}->{_root};
         } 
     }
@@ -177,20 +179,20 @@ sub dumpNodeOld{
     push(@$stack, $node);
     #print "$node->{_nodeNum} -> $node->{_label}\n";
 
-    if(defined $node->{_subMethod} && not defined $node->{_subMethodUIEvent}) {
+    if(defined $node->{_subMethod} && ( not defined $node->{_subMethodUIEvent} )) {
         #print "Start -> ",$node->{_subMethod}->{_methodName},"\n";
         dumpNode($node->{_subMethod}->{_root}, $stack);
     } 
     @nextNodeArray = @{$node->{_nextNode}};
     @nextUINodeArray = @{$node->{_nextUINode}};
-    if($#nextNodeArray == -1 && $#nextUINodeArray == -1 && not defined $node->{_return}) {
+    if($#nextNodeArray == -1 && $#nextUINodeArray == -1 && ( not defined $node->{_return})) {
         for my $elements (@$stack) {
             if($elements->{_label} =~ m/\.query\(.+\)/) {
                 # conditional path building - start
                 my @conditionalPath;
                 for my $stackNode (@$stack) {
                     @stackNodeArray = @{$stackNode->{_nextNode}};
-                    if($#stackNodeArray > 0 && not defined $stackNode->{_subMethod}) {
+                    if($#stackNodeArray > 0 && (not defined $stackNode->{_subMethod})) {
                         my $isExceptionBranch = 0;
                         for my $innerStackNode (@stackNodeArray) {
                             if($innerStackNode->{_label} =~ m/\@caughtexception/) {

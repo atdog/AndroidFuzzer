@@ -14,22 +14,22 @@ SOOT_CLASSPATH="/Users/atdog/eclipse-android/android-sdk-mac_x86/platforms/andro
 # Translate AndroidManifest file from binary to human readable
 #####
 #[ ! -f $APK_LOCATION ] && echo File not found. && exit
-#echo "[0;32m=====> Decode xml(you need install framework first)[0m"
-#tools/apktool d -f $APK_LOCATION $DIR_NAME
+echo "[0;32m=====> Decode xml(you need install framework first)[0m"
+tools/apktool d -f $APK_LOCATION $DIR_NAME
 #
 ######
 ## unzip apk file
 ######
-#echo "[0;32m=====> unzip apk file[0m"
-#unzip -n $APK_LOCATION -d $DIR_NAME
+echo "[0;32m=====> unzip apk file[0m"
+unzip -n $APK_LOCATION -d $DIR_NAME
 #
 ######
 ## dex 2 jar
 ## Retrieve the classes from dex file
 ######
-#echo "[0;32m=====> dex2jar[0m"
-#tools/dex2jar-0.0.9.8/dex2jar.sh "$DIR_NAME/classes.dex" || (echo "[0;31m=====> Classes.dex not exist [0m" && exit)
-#(cd $DIR_NAME && jar xvf classes_dex2jar.jar)
+echo "[0;32m=====> dex2jar[0m"
+tools/dex2jar-0.0.9.8/dex2jar.sh "$DIR_NAME/classes.dex" || (echo "[0;31m=====> Classes.dex not exist [0m" && exit)
+(cd $DIR_NAME && jar xvf classes_dex2jar.jar)
 
 #####
 # Use soot.jar to generate dot file for constructing CFG

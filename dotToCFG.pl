@@ -925,7 +925,7 @@ sub getMethodDot {
                         }
                     }
                     if($is_found) {
-                        $file = `grep -lR '$method_name' '$class_dir_path/$method'`; 
+                        $file = `grep -lR '$method_name' '$class_dir_path/$method' | grep -v .swp`; 
                         chomp $file;
                         break;
                     }
