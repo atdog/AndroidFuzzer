@@ -43,6 +43,7 @@ my %JIMPLE_PRIMITIVE_TYPE = (
     z =>     "boolean",
     f =>     "float",
     c =>     "char",
+    d =>     "double",
 );
 my %PRIMITIVE_TYPE_RESOLVE = (
     I =>     "int",
@@ -305,7 +306,7 @@ sub parseMethodDotFile {
                         $classNameOfInvokation = $1;
                     }
                     # check whether UIrelated - API call occurs
-                    UIEventAPIParser($activityName, $dotFileName, $1, $methodNameOfInvokation, $parasOfInvokation, \@nodeArray, $nodeNum);
+                    UIEventAPIParser($activityName, $dotFileName, $1, $methodNameOfInvokation, $parasOfInvokation, \@nodeArray, $nodeNum, $3);
                     #
                     print "-=-=-=-> invokation: $classNameOfInvokation.$methodNameOfInvokation($parasOfInvokation)\n";
                     if($classNameOfInvokation =~ m/$PACKAGE/) {
@@ -362,7 +363,7 @@ sub parseMethodDotFile {
                         print "-=-=-=-> returnType: $returnType\n";
                     }
                     # primitive data type
-                    elsif($localVar =~ m/^(?:label\d+: )?\$?(f|l|b|i|z|c)\d+.*$/) {
+                    elsif($localVar =~ m/^(?:label\d+: )?\$?(f|l|b|i|z|c|d)\d+.*$/) {
                         my $priVar = $1;
                         if($varType =~ m/^(?:label\d+: )?(?:specialinvoke )?([^\(\)]*)\.([^\.\(\)]*)\((.*)\)$/){
                             my $parentType = $1;
@@ -609,11 +610,11 @@ sub parseMethodDotFile {
 }
 
 sub UIEventAPIParser {
-    my($activityName, $dotFileName, $localVar, $apiName, $parasToCheck, $nodeArray, $nodeNum) = @_;
+    my($activityName, $dotFileName, $localVar, $apiName, $parasToCheck, $nodeArray, $nodeNum, $oriPar) = @_;
     my @nodes = @$nodeArray;
+    my $newMethod = "";
+    my $newParas = "";
     if(exists $ALL_VIEW_ID->{$dotFileName}->{$localVar}) {
-        my $newMethod = "";
-        my $newParas = "";
         # parse api
         if($apiName eq "setAdapter") {
             $newMethod = "instantiateItem";
@@ -626,18 +627,39 @@ sub UIEventAPIParser {
             $nodes[$nodeNum]->{_subMethodUIEvent} = $ALL_VIEW_ID->{$dotFileName}->{$localVar};
             push(@{$ALL_UI_EVENT->{$activityName}}, {node=>$nodes[$nodeNum],event=>"click"});
         }
-        # parse dot file
-        if($newMethod ne ""){ 
-            my $fileName = getMethodDot($parasToCheck,$newMethod,$newParas);
-            if($fileName !~ m/ERROR/) {
-                parseMethodDotFile($activityName, $parasToCheck, $newMethod, $newParas, $fileName) if not exists $ALL_METHOD_CFG->{$fileName};
-                push(@{$ALL_METHOD_CFG->{$fileName}->{_prevNode}}, $nodes[$nodeNum]);
-                $nodes[$nodeNum]->{_subMethod} = $ALL_METHOD_CFG->{$fileName};
-                print "-=-=-=-> subMethod parsing done.\n";
+    }
+    elsif($apiName eq "startActivity" && $parasToCheck eq "android.content.Intent") {
+        for(my $i=$nodeNum; $i > 0; $i--) {
+            $oriPar =~ s/\$/\\\$/g;
+            if($nodes[$i]->{_label} =~ m/$oriPar = (.*)/) {
+                # specialinvoke $r5.<init>($r6, class \"com/mywoo/clog/Logweb\")
+                my $passPar = $1;
+                $passPar =~ s/\$/\\\$/g;
+                for(my $j=$i; $j>0 ; $j--) {
+                    if($nodes[$j]->{_label} =~ m/(?:specialinvoke )?$passPar\.<init>\(.*, class \\"(.*)\\"\)/) {
+                        my $newActivity = $1;
+                        $newActivity =~ s/\//\./g;
+                        $activityName = $newActivity;
+                        $parasToCheck = $newActivity;
+                        $newMethod = "onCreate";
+                        $newParas = "android.os.Bundle";
+                        break;
+                    }
+                }
             }
-            else {
-                print "-------------> [0;31m$className $apiName not found[0m\n";
-            }
+        }
+    }
+    # parse dot file
+    if($newMethod ne ""){ 
+        my $fileName = getMethodDot($parasToCheck,$newMethod,$newParas);
+        if($fileName !~ m/ERROR/) {
+            parseMethodDotFile($activityName, $parasToCheck, $newMethod, $newParas, $fileName) if not exists $ALL_METHOD_CFG->{$fileName};
+            push(@{$ALL_METHOD_CFG->{$fileName}->{_prevNode}}, $nodes[$nodeNum]);
+            $nodes[$nodeNum]->{_subMethod} = $ALL_METHOD_CFG->{$fileName};
+            print "-=-=-=-> subMethod parsing done.\n";
+        }
+        else {
+            print "-------------> [0;31m$className $apiName not found[0m\n";
         }
     }
 }
@@ -785,6 +807,8 @@ sub methodChecker{
         }
         $command =~ s/\$/\\\$/g;
         $command =~ s/;/\\;/g;
+        $command =~ s/\(/\\\(/g;
+        $command =~ s/\)/\\\)/g;
         if(! -d "$DIR_PATH/sootOutput/$c") {
             $command .= " --ez 'private' 'false'";
         }
@@ -811,6 +835,8 @@ sub fieldChecker{
     my $command="adb shell am startservice -a 'lab.mobile.ntu.TYPE_CHECKER' --es 'classname' '$c' --es 'fieldname' '$f' --es 'appname' '$APP_PATH_IN_ANDROID'";
     $command =~ s/\$/\\\$/g;
     $command =~ s/;/\\;/g;
+    $command =~ s/\(/\\\(/g;
+    $command =~ s/\)/\\\)/g;
     if(! -d "$DIR_PATH/sootOutput/$c") {
         $command .= " --ez 'private' 'false'";
     }

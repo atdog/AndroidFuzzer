@@ -31,8 +31,8 @@ sub dumpGraph {
     my $CandidatePathArray = []; # S->Q
     my $AllPathArray = []; # Q->T
     my $PathToCandidateNode = [];
-    GetRemainPathFromQ($self->{_root}, [], []);
-    #FindAllQueryAPINode($self->{_root}, $CandidateNodeArray, $CandidatePathArray, $PathToCandidateNode); 
+    #GetRemainPathFromQ($self->{_root}, [], []);
+    FindAllQueryAPINode($self->{_root}, $CandidateNodeArray, $CandidatePathArray, $PathToCandidateNode, []); 
     #GetRemainPath($CandidateNodeArray,$AllPathArray);
     
 
@@ -55,7 +55,7 @@ sub GetRemainPathFromQ {
     #  2. no next node
     $node->{_pathID} = $PATH_ID;
     push @$path, $node;
-    print "$node->{_nodeNum}: $node->{_label} nextNode:$#{$node->{_nextNode}}, nextUINode: $#{$node->{_nextUINode}}, file:$node->{_methodCFG}->{_methodName}\n";
+    #print "$node->{_nodeNum}: $node->{_label} nextNode:$#{$node->{_nextNode}}, nextUINode: $#{$node->{_nextUINode}}, file:$node->{_methodCFG}->{_methodName}\n";
     # check the stop condition
     if($#{$node->{_nextNode}} == -1 && $#{$node->{_nextUINode}} == -1 && $#{$returnStack} == -1) {
         # find the end point
@@ -63,8 +63,8 @@ sub GetRemainPathFromQ {
         for my $nodeInPath (@$path) {
             if($nodeInPath->{_label} =~ m/\.query\(.+\)/) {
                 print "^[[0;34m===> path start^[[0m\n";
-                print "$_->{_nodeNum}: $_->{_label}\n" for @$path;
-                print "^[[0;34m===> path end^[[0m\n";
+                #print "$_->{_nodeNum}: $_->{_label}\n" for @$path;
+                #print "^[[0;34m===> path end^[[0m\n";
                 break;
             }
         }
@@ -76,24 +76,16 @@ sub GetRemainPathFromQ {
     if($#{$node->{_nextNode}} == -1 && $#{$returnStack} > -1) {
         $lastReturn = pop @$returnStack;
         push @$nextNodeArray, @$lastReturn;
-        print "Return call - return stack pop\n";
     }
     else {
         if(defined $node->{_subMethod} && ( not defined $node->{_subMethodUIEvent} )&& $node->{_subMethod}->{_root}->{_pathID} < $PATH_ID) {
             push @$nextNodeArray, $node->{_subMethod}->{_root};
             push @$returnStack, $node->{_nextNode};
-            print "Submethod Call - return stack push\n";
         } 
         else {
             $nextNodeArray = GetNextNodeArray($node, 0);
         }
     }
-    # trick
-    # if nextNodeArray is empty, then we pop return node from returnStack
-#    if($#{$nextNodeArray} == -1) {
-#        $lastReturn = pop @$returnStack;
-#        push @$nextNodeArray, @$lastReturn;
-#    }
     # include the condition - no next node
     # will be an array reference
     for my $nextNode (@$nextNodeArray) {
@@ -104,7 +96,7 @@ sub GetRemainPathFromQ {
 }
 
 sub FindAllQueryAPINode {
-    my ($node, $CandidateNodeArray, $CandidatePathArray, $PathToCandidateNode) = @_;
+    my ($node, $CandidateNodeArray, $CandidatePathArray, $PathToCandidateNode, $returnStack) = @_;
 
     # stop condition
     #  1. find circle
@@ -118,17 +110,32 @@ sub FindAllQueryAPINode {
         # dump and save the candidate node
         my @path = @$PathToCandidateNode; # this will copy the array to @path
         push @$CandidatePathArray, \@path;
-        #print "^[[0;34m===> path start^[[0m\n";
-        #print "$_->{_nodeNum}: $_->{_label}\n" for @$PathToCandidateNode;
-        #print "^[[0;34m===> path end^[[0m\n";
-        return;
+        print "^[[0;34m===> path start^[[0m\n";
+        print "$_->{_nodeNum}: $_->{_label}\n" for @$PathToCandidateNode;
+        print "^[[0;34m===> path end^[[0m\n";
+    }
+    if($#{$node->{_nextNode}} == -1 && $#{$node->{_nextUINode}} == -1 && $#{$returnStack} == -1) {
+        return ;
     }
     # include the condition - no next node
     # will be an array reference
-    my $nextNodeArray = GetNextNodeArray($node,1);
+    my $nextNodeArray;
+    if($#{$node->{_nextNode}} == -1 && $#{$returnStack} > -1) {
+        $lastReturn = pop @$returnStack;
+        push @$nextNodeArray, @$lastReturn;
+    }
+    else {
+        if(defined $node->{_subMethod} && ( not defined $node->{_subMethodUIEvent} )&& $node->{_subMethod}->{_root}->{_pathID} < $PATH_ID) {
+            push @$nextNodeArray, $node->{_subMethod}->{_root};
+            push @$returnStack, $node->{_nextNode};
+        } 
+        else {
+            $nextNodeArray = GetNextNodeArray($node, 0);
+        }
+    }
     for my $nextNode (@{$nextNodeArray}) {
         # include the condition - circle found
-        FindAllQueryAPINode($nextNode, $CandidateNodeArray, $CandidatePathArray, $PathToCandidateNode) if $nextNode->{_scanQueryID} == 0;
+        FindAllQueryAPINode($nextNode, $CandidateNodeArray, $CandidatePathArray, $PathToCandidateNode, $returnStack) if $nextNode->{_scanQueryID} == 0;
         pop @$PathToCandidateNode;
     }
 }
