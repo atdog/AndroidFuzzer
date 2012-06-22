@@ -256,6 +256,12 @@ sub parseMethodDotFile {
     my @nodeArray = ();
     my $endNodeNum;
     print $dotFileName, "\n";
+    #Test
+    if($entryPointMethod eq "onCreate") {
+        parseMenuSelection($activityName,$entryPointClass);
+        return;
+    }
+    #
     open(my $FILE, "< $dotFileName");
     while(<$FILE>) {
         if($_ =~ m/label="(.*)";/) {
@@ -573,6 +579,8 @@ sub parseMethodDotFile {
     print "==== data ====" , "\n";
     print Dumper($methodCFG->{_local});
 
+    # parse menu selection
+    #parseMenuSelection();
     ###
     #  for android activity lifecycle
     ###
@@ -603,7 +611,7 @@ sub parseMethodDotFile {
             # relate to sub UIEventAPIParser
             my $UINode = $UIEventHash->{node}->{_subMethod}->{_root};
             my $UIEvent = $UIEventHash->{event};
-            my $UIView = $UIEventHash->{node}->{_subMethodUIEvent};
+            my $UIView = $UIEventHash->{view};
             push(@{$nodeArray[$endNodeNum]->{_nextUINode}}, {node=>$UINode, event=>$UIEvent, view=>$UIView});
         }
     }
@@ -625,18 +633,18 @@ sub UIEventAPIParser {
             $newParas = "android.view.View";
             # this mean u must fire the event click to toggle this subMethod(onClick)
             $nodes[$nodeNum]->{_subMethodUIEvent} = $ALL_VIEW_ID->{$dotFileName}->{$localVar};
-            push(@{$ALL_UI_EVENT->{$activityName}}, {node=>$nodes[$nodeNum],event=>"click"});
+            push(@{$ALL_UI_EVENT->{$activityName}}, {node=>$nodes[$nodeNum],event=>"click", view=>$nodes[$nodeNum]->{_subMethodUIEvent}});
         }
     }
     elsif($apiName eq "startActivity" && $parasToCheck eq "android.content.Intent") {
+        $oriPar =~ s/\$/\\\$/g;
         for(my $i=$nodeNum; $i > 0; $i--) {
-            $oriPar =~ s/\$/\\\$/g;
             if($nodes[$i]->{_label} =~ m/$oriPar = (.*)/) {
                 # specialinvoke $r5.<init>($r6, class \"com/mywoo/clog/Logweb\")
-                my $passPar = $1;
-                $passPar =~ s/\$/\\\$/g;
+                my $oriPar = $1;
+                $oriPar =~ s/\$/\\\$/g;
                 for(my $j=$i; $j>0 ; $j--) {
-                    if($nodes[$j]->{_label} =~ m/(?:specialinvoke )?$passPar\.<init>\(.*, class \\"(.*)\\"\)/) {
+                    if($nodes[$j]->{_label} =~ m/(?:specialinvoke )?$oriPar\.<init>\(.*, class \\"(.*)\\"\)/) {
                         my $newActivity = $1;
                         $newActivity =~ s/\//\./g;
                         $activityName = $newActivity;
@@ -646,6 +654,18 @@ sub UIEventAPIParser {
                         break;
                     }
                 }
+                if($newMethod ne "") {
+                    break;
+                }
+            }
+            elsif($nodes[$i]->{_label} =~ m/(?:specialinvoke )?$oriPar\.<init>\(.*, class \\"(.*)\\"\)/) {
+                my $newActivity = $1;
+                $newActivity =~ s/\//\./g;
+                $activityName = $newActivity;
+                $parasToCheck = $newActivity;
+                $newMethod = "onCreate";
+                $newParas = "android.os.Bundle";
+                break;
             }
         }
     }
@@ -659,9 +679,45 @@ sub UIEventAPIParser {
             print "-=-=-=-> subMethod parsing done.\n";
         }
         else {
-            print "-------------> [0;31m$className $apiName not found[0m\n";
+            print "-------------> [0;31m$parasToCheck $newMethod not found[0m\n";
         }
     }
+}
+
+sub parseMenuSelection {
+    my($activityName, $entryPointClass) = @_;
+    my $newMethod = "onOptionsItemSelected";
+    my $newParas = "android.view.MenuItem";
+
+    my $fileName = getMethodDot($entryPointClass,$newMethod,$newParas);
+    if($fileName !~ m/ERROR/) {
+        parseMethodDotFile($activityName, $entryPointClass, $newMethod, $newParas, $fileName) if not exists $ALL_METHOD_CFG->{$fileName};
+        print "-=-=-=-> subMethod parsing done.\n";
+    }
+    else {
+        print "-------------> [0;31m$entryPointClass $newMethod not found[0m\n";
+    }
+
+    my $nodeArray = $ALL_METHOD_CFG->{$fileName}->{_nodeArray};
+    my $nodeNum = $#{$nodeArray};
+    for(my $i = 0; $i <= $nodeNum;$i++){
+        #$i9 = r1.getItemId()
+        if($nodeArray->[$i]->{_label} =~ m/(.*) = .*\.getItemId\(\)/) {
+            my $var = $1;
+            $var =~ s/\$/\\\$/g;
+            for(my $j = $i; $j <= $nodeNum; $j++) {
+                # tableswitch($i9)\n        {\n            case 0: goto label2;\n            case 1: goto label3;\n            case 2: goto label10;\n            case 3: goto label19;\n            case 4: goto label17;\n            case     5: goto label20;\n            case 6: goto label21;\n            case 7: goto label22;\n            case 8: goto label0;\n            case 9: goto label23;\n            case 10: goto label24;\n            case 11: goto label0;\n                case 12: goto label18;\n            default: goto label0;\n        }"
+                if($nodeArray->[$j]->{_label} =~ m/tableswitch\($var\).*{(.*)}/) {
+                    my $switchContent = $2;
+                    print $switchContent, "\n";
+                    #push(@{$ALL_UI_EVENT->{$activityName}}, {node=>$nodes[$nodeNum],event=>"click", view=>$nodes[$nodeNum]->{_subMethodUIEvent}});
+                    break;
+                }
+            }
+            break;
+        }
+    }
+    print "shit\n";
 }
 
 sub setViewId {
