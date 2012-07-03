@@ -86,6 +86,9 @@ my %ALL_UI_EVENT = ();
 my $DIR_PATH = $APK_FILE_PATH;
 my $APK_FILE_NAME = $APK_FILE_PATH;
 my $APP_PATH_IN_ANDROID;
+my $CLASS_REFERENCE = {};
+my $CLASS_FIELD_REFERENCE = {};
+my $REFLECTION_REFERENCE = {};
 $DIR_PATH =~ s/\.apk//;
 $APK_FILE_NAME =~ s/.*\/([^\/]*\.apk)/$1/;
 
@@ -259,7 +262,7 @@ sub parseMethodDotFile {
     #Test
     if($entryPointMethod eq "onCreate") {
         parseMenuSelection($activityName,$entryPointClass);
-        return;
+        #return;
     }
     #
     open(my $FILE, "< $dotFileName");
@@ -338,21 +341,25 @@ sub parseMethodDotFile {
             }
             elsif($statement =~ m/^(?:label\d+: )?return(.*)$/) {
                 $endNodeNum = $nodeNum;
+                CreateReturnTypeClass($1, $dotFileName, $methodCFG, $nodeNum);
             }
             ###
             #  need find the type of local vars
             #  need to discard array assignment
             ###
-            elsif($statement =~ m/^(?:label\d+: )?([^\[\] ]*) :?= (.*)$/) {
+            elsif($statement =~ m/^(?:label\d+: )?([^\[\] ]*) :?= (?:specialinvoke )?(.*)$/) {
                 # r0 = this
                 my $localVar = $1;
                 my $varType = $2;
+                my $lhs = $1;
+                my $rhs = $2;
                 if(exists $methodCFG->{_local}->{$varType}) {
                     if(isInViewId($dotFileName, $varType)) {
                         setViewId($dotFileName,$localVar, getViewId($dotFileName, $varType));
                     }
                     $varType = $methodCFG->{_local}->{$varType};
                     print "-=-=-=-> Found in table: $varType\n";
+                    CreateClassReference($lhs, $rhs, $methodCFG, $dotFileName);
                 } else {
                     # a.b.c = xxx  variable(or constant)
                     if($localVar =~ m/^(.*)\.([^.\(\)]*)$/) {
@@ -477,6 +484,7 @@ sub parseMethodDotFile {
                             if(isInViewId($dotFileName, $2)) {
                                 setViewId($dotFileName,$localVar, getViewId($dotFileName, $2));
                             }
+                            CreateClassReference($lhs, $rhs, $methodCFG, $dotFileName);
                             print "-=-=-=-> Casting $varType\n";
                         }
                         # rx = \"string\"
@@ -532,6 +540,7 @@ sub parseMethodDotFile {
                             my $parasToCheck = parseParas($methodCFG,$parameter,0);
                             print "-=-=-=-> className: $className\n";
                             print "-=-=-=-> apiName: $apiName($parameter)\n";
+                            ReflectionAPICheck($className, $apiName, $parasToCheck, $methodCFG, $dotFileName, $lhs, $parameter, $nodeNum, $parentType);
                             # run typeChecker.jar
                             my $returnType;
                             if($parasToCheck eq "") {
@@ -558,6 +567,7 @@ sub parseMethodDotFile {
                                     print "-------------> [0;31m$className $apiName not found[0m\n";
                                 }
                                 $varType = $returnType;
+                                CreateReturnClassReference($localVar, $dotFileName, $fileName);
                             }
                         }
                             #}
@@ -578,6 +588,7 @@ sub parseMethodDotFile {
     close $FILE;
     print "==== data ====" , "\n";
     print Dumper($methodCFG->{_local});
+    print Dumper($CLASS_REFERENCE);
 
     # parse menu selection
     #parseMenuSelection();
@@ -622,6 +633,7 @@ sub UIEventAPIParser {
     my @nodes = @$nodeArray;
     my $newMethod = "";
     my $newParas = "";
+    my $isStartActivity = 0 ;
     if(exists $ALL_VIEW_ID->{$dotFileName}->{$localVar}) {
         # parse api
         if($apiName eq "setAdapter") {
@@ -637,6 +649,7 @@ sub UIEventAPIParser {
         }
     }
     elsif($apiName eq "startActivity" && $parasToCheck eq "android.content.Intent") {
+        $isStartActivity = 1;
         $oriPar =~ s/\$/\\\$/g;
         for(my $i=$nodeNum; $i > 0; $i--) {
             if($nodes[$i]->{_label} =~ m/$oriPar = (.*)/) {
@@ -673,6 +686,11 @@ sub UIEventAPIParser {
     if($newMethod ne ""){ 
         my $fileName = getMethodDot($parasToCheck,$newMethod,$newParas);
         if($fileName !~ m/ERROR/) {
+            if($isStartActivity == 1) {
+                my $initFileName = $fileName;
+                $initFileName =~ s/onCreate\(.*\)/<init>\(\)/;
+                parseMethodDotFile($activityName, $parasToCheck, '<init>', '', $initFileName) if not exists $ALL_METHOD_CFG->{$initFileName};
+            }
             parseMethodDotFile($activityName, $parasToCheck, $newMethod, $newParas, $fileName) if not exists $ALL_METHOD_CFG->{$fileName};
             push(@{$ALL_METHOD_CFG->{$fileName}->{_prevNode}}, $nodes[$nodeNum]);
             $nodes[$nodeNum]->{_subMethod} = $ALL_METHOD_CFG->{$fileName};
@@ -708,16 +726,23 @@ sub parseMenuSelection {
             for(my $j = $i; $j <= $nodeNum; $j++) {
                 # tableswitch($i9)\n        {\n            case 0: goto label2;\n            case 1: goto label3;\n            case 2: goto label10;\n            case 3: goto label19;\n            case 4: goto label17;\n            case     5: goto label20;\n            case 6: goto label21;\n            case 7: goto label22;\n            case 8: goto label0;\n            case 9: goto label23;\n            case 10: goto label24;\n            case 11: goto label0;\n                case 12: goto label18;\n            default: goto label0;\n        }"
                 if($nodeArray->[$j]->{_label} =~ m/tableswitch\($var\).*{(.*)}/) {
-                    my $switchContent = $2;
-                    print $switchContent, "\n";
-                    #push(@{$ALL_UI_EVENT->{$activityName}}, {node=>$nodes[$nodeNum],event=>"click", view=>$nodes[$nodeNum]->{_subMethodUIEvent}});
+                    my $switchContent = $1;
+                    while($switchContent =~ s/\\n\s+case (\d+): goto (label\d+);//) {
+                        $nextNode = $nodeArray->[$j]->{_nextNode};
+                        $itemId = $1;
+                        $label = $2;
+                        for my $nextLabelNode (@$nextNode) {
+                            if($nextLabelNode->{_label} =~ m/^$label: .*$/) {
+                                push(@{$ALL_UI_EVENT->{$activityName}}, {node=>$nextLabelNode,event=>"pressMenu", view=>$itemId});
+                            }
+                        }
+                    }
                     break;
                 }
             }
             break;
         }
     }
-    print "shit\n";
 }
 
 sub setViewId {
@@ -780,23 +805,28 @@ sub parseParas{
         ###
         my @newParas;
         my $startAppend = 0;
-        for my $i (0..$#paras) {
-            if($paras[$i] =~ m/^\\".*$/ && $paras[$i] !~ m/^.*\\"$/) {
-                $startAppend = 1;    
-                push @newParas, $paras[$i];
-            }
-            elsif($paras[$i] !~ m/^\\".*$/ && $paras[$i] =~ m/^.*\\"$/) {
-                $startAppend = 0;
-                $newParas[$#newParas] .= $paras[$i];
-            }
-            else {
-                if($startAppend == 1) {
+        if($#paras > 0) {
+            for my $i (0..$#paras) {
+                if($paras[$i] =~ m/^\\".*$/ && $paras[$i] !~ m/^.*\\"$/) {
+                    $startAppend = 1;    
+                    push @newParas, $paras[$i];
+                }
+                elsif($paras[$i] !~ m/^\\".*$/ && $paras[$i] =~ m/^.*\\"$/) {
+                    $startAppend = 0;
                     $newParas[$#newParas] .= $paras[$i];
                 }
                 else {
-                    push @newParas, $paras[$i];
+                    if($startAppend == 1) {
+                        $newParas[$#newParas] .= $paras[$i];
+                    }
+                    else {
+                        push @newParas, $paras[$i];
+                    }
                 }
             }
+        }
+        elsif($#paras == 0) {
+            $newParas[0] = $paras[0];
         }
         ###
         for my $para (@newParas) {
@@ -843,6 +873,127 @@ sub parseParas{
         $parasToCheck =~ s/^,(.*)$/$1/;
     }
     return $parasToCheck;
+}
+sub ReflectionAPICheck {
+    my ($className, $apiName, $paras, $methodCFG, $dotFileName, $lhs, $originParas, $nodeNum, $originLhs) = @_;
+    $apiStatement = "$className.$apiName($paras)";
+    if($apiStatement eq "java.lang.Class.forName(java.lang.String)") {
+        #$REFLECTION_REFERENCE->{$dotFileName}->{$lhs};
+        if(exists $methodCFG->{_local}->{$originParas}) {
+            my $lhsRX = $originParas;
+            $lhsRX =~ s/\$/\\\$/g;
+            for(my $i = $nodeNum-1; $i >= 0; $i--) {
+                if($methodCFG->{_nodeArray}->[$i]->{_label} =~ m/^$lhsRX = (\\".*\\")$/) {
+                    $originParas = $1;
+                    break;
+                }
+            }
+        }
+        $originParas =~ s/\\"//g; 
+        push @{$REFLECTION_REFERENCE->{$dotFileName}->{$lhs}}, $originParas;
+    }
+    elsif("$className.$apiName" eq "java.lang.Class.asSubclass") {
+        my $list;
+        if(exists $REFLECTION_REFERENCE->{$dotFileName}->{$originLhs}) {
+            push @$list, @{$REFLECTION_REFERENCE->{$dotFileName}->{$originLhs}};
+        }
+        else {
+            push @$list, "java.lang.Object";
+        }
+        $originParas =~ s/class \\"(.*)\\"/\1/g;
+        $originParas =~ s/\//\./g;
+        push @$list, $originParas;
+        $REFLECTION_REFERENCE->{$dotFileName}->{$lhs} = $list;
+    }
+    elsif($apiStatement eq "java.lang.Class.newInstance()") {
+        my $list;
+        push @$list, "java.lang.Object";
+        if(exists $REFLECTION_REFERENCE->{$dotFileName}->{$originLhs}) {
+            push @$list, @{$REFLECTION_REFERENCE->{$dotFileName}->{$originLhs}};
+        }
+        $REFLECTION_REFERENCE->{$dotFileName}->{$lhs} = $list;
+    }
+}
+sub CreateClassReference {
+     my ($lhs, $rhs, $methodCFG, $dotFileName) = @_;
+     # Two condition
+     #  1.type casting
+     #  2.assignment
+     if($rhs =~ m/^\((.*)\) (.*)$/) {
+         my $type = toJimpleType($1);
+         my $var = $2;
+         if(exists $methodCFG->{_local}->{$var}) {
+             push @{$CLASS_REFERENCE->{$dotFileName}->{$lhs}}, $methodCFG->{_local}->{$var};
+         }
+         push @{$CLASS_REFERENCE->{$dotFileName}->{$lhs}}, $type;
+         if(exists $REFLECTION_REFERENCE->{$dotFileName}->{$var}) {
+             my $list;
+             for my $classType (@{$REFLECTION_REFERENCE->{$dotFileName}->{$var}}) {
+                 push @$list, $classType; 
+                 if($classType eq $type) {
+                     break;
+                 }
+             }
+             $CLASS_REFERENCE->{$dotFileName}->{$lhs} = $list;
+         }
+     }
+     # class field assignment
+     if($lhs =~ m/^(.*)\.([^.\(\)]*)$/) {
+         my $class = $1;
+         my $field = $2;
+         if(exists $methodCFG->{_local}->{$class}) {
+             $class = $methodCFG->{_local}->{$class};
+         }
+         if(exists $CLASS_REFERENCE->{$dotFileName}->{$rhs}) {
+             $CLASS_FIELD_REFERENCE->{$class}->{"$class.$field"} = $CLASS_REFERENCE->{$dotFileName}->{$rhs};
+         }
+         else {
+             my $data = [$methodCFG->{_local}->{$rhs}];
+             $CLASS_FIELD_REFERENCE->{$class}->{"$class.$field"} = $data;
+         }
+     }
+}
+
+sub CreateReturnTypeClass {
+    my ($varType, $dotFileName, $methodCFG, $nodeNum) = @_;
+    if($varType =~ m/ (.+)/) {
+        $var = $1;
+        if(exists $CLASS_REFERENCE->{$dotFileName}->{$var}) {
+            $CLASS_REFERENCE->{$dotFileName}->{'return'} = $CLASS_REFERENCE->{$dotFileName}->{$var} ;
+        }
+        else{
+            my $varTypeRX = $varType;
+            $varTypeRX =~ s/\$/\\\$/g;
+            for(my $i=$nodeNum - 1 ; $i >=0 ;$i--) {
+                if($methodCFG->{_nodeArray}->[$i]->{_label} =~ m/$varTypeRX = (.*)/) {
+                    my $assignVar = $1;
+                    if(exists $CLASS_REFERENCE->{$dotFileName}->{$assignVar}) {
+                        $CLASS_REFERENCE->{$dotFileName}->{'return'} = $CLASS_REFERENCE->{$dotFileName}->{$assignVar} ;
+                        return;
+                    }
+                    else {
+                        if($assignVar =~ m/(.*)\.([^\.]*)/) {
+                            my $class = $1;
+                            if(exists $CLASS_FIELD_REFERENCE->{$class}->{$assignVar}) {
+                                $CLASS_REFERENCE->{$dotFileName}->{'return'} = $CLASS_FIELD_REFERENCE->{$class}->{$assignVar} ;
+                                return;
+                            }
+                        }
+                    }
+                }
+            }
+            push @{$CLASS_REFERENCE->{$dotFileName}->{'return'}} ,$methodCFG->{_local}->{$var} ;
+        }
+        return;
+    }
+    push @{$CLASS_REFERENCE->{$dotFileName}->{'return'}} ,'void' ;
+}
+
+sub CreateReturnClassReference {
+     my ($lhs, $callerFileName, $calleeFileName) = @_;
+     if(exists $CLASS_REFERENCE->{$calleeFileName}->{'return'}) {
+         $CLASS_REFERENCE->{$callerFileName}->{$lhs} = $CLASS_REFERENCE->{$calleeFileName}->{'return'};
+     }
 }
 
 sub methodChecker{
