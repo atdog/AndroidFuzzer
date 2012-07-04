@@ -514,7 +514,10 @@ sub parseMethodDotFile {
                             print "-=-=-=-> fieldName: $fieldName\n";
                             print "-=-=-=-> returnType: $returnType\n";
                             $methodCFG->{_local}->{"$className.$fieldName"} = $returnType;
-                            print "-=-=-=-> assign $className.$fieldName to $returnType\n"
+                            print "-=-=-=-> assign $className.$fieldName to $returnType\n";
+                            if(exists $CLASS_FIELD_REFERENCE->{$className}->{"$className.$fieldName"}) {
+                                $CLASS_REFERENCE->{$dotFileName}->{$localVar} = $CLASS_FIELD_REFERENCE->{$className}->{"$className.$fieldName"};
+                            }
                         }
                         # rx = rx.api()
                         elsif($varType =~ m/^(?:label\d+: )?(?:specialinvoke )?([^\(\)]*)\.([^\.\(\)]*)\((.*)\)$/) 
@@ -542,19 +545,28 @@ sub parseMethodDotFile {
                             print "-=-=-=-> apiName: $apiName($parameter)\n";
                             ReflectionAPICheck($className, $apiName, $parasToCheck, $methodCFG, $dotFileName, $lhs, $parameter, $nodeNum, $parentType);
                             # run typeChecker.jar
-                            my $returnType;
-                            if($parasToCheck eq "") {
-                                $returnType = methodChecker($className, $apiName);
-                                print "-=-=-=-> returnType: $returnType\n";
-                            }
-                            else {
-                                print "-=-=-=-> parameter: $parasToCheck\n";
-                                $returnType = methodChecker($className, $apiName, $parasToCheck);
-                                print "-=-=-=-> returnType: $returnType\n";
-                            }
+                            my $returnType = "NotFound";
+                            $returnType = methodChecker($className, $apiName, $parasToCheck);
+
+                            print "-=-=-=-> returnType: $returnType\n";
                             if( $returnType !~ m/^NotFound-/) {
                                 my $fileName = getMethodDot($className,$apiName,$parasToCheck);
-                                if($fileName !~ m/ERROR/) {
+                                if($fileName =~ m/^ERROR/) {
+                                    if(exists $CLASS_REFERENCE->{$dotFileName}->{$parentType}) {
+                                        my @list = @{$CLASS_REFERENCE->{$dotFileName}->{$parentType}};
+                                        pop @list;
+                                        while ($#list > -1) {
+                                            my $obj = pop @list;
+                                            $fileName = getMethodDot($obj,$apiName,$parasToCheck);
+                                            if($fileName !~ m/^ERROR/ ) {
+                                                $className = $obj;
+                                                @list=();
+                                                break;
+                                            }
+                                        }
+                                    }
+                                }
+                                if($fileName !~ m/^ERROR/) {
                                     parseMethodDotFile($activityName, $className, $apiName,$parasToCheck, $fileName) if not exists $ALL_METHOD_CFG->{$fileName};
                                     if(isRecursive($entryPointClass,$entryPointMethod,$entryPointMethodParas,$className,$apiName,$parasToCheck) == 0) {
                                         push(@{$ALL_METHOD_CFG->{$fileName}->{_prevNode}}, $nodeArray[$nodeNum]);
@@ -997,9 +1009,7 @@ sub CreateReturnClassReference {
 }
 
 sub methodChecker{
-    my $c = $_[0];
-    my $m = $_[1];
-    my $p = defined $_[2] ? $_[2] : "";
+    my ($c, $m, $p) = @_;
     my $return;
     if(exists $ALL_METHOD_TYPE{"$c.$m($p)"}) {
         $return = $ALL_METHOD_TYPE{"$c.$m($p)"};
