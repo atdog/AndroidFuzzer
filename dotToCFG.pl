@@ -557,7 +557,7 @@ sub parseMethodDotFile {
                                         pop @list;
                                         while ($#list > -1) {
                                             my $obj = pop @list;
-                                            $fileName = getMethodDot($obj,$apiName,$parasToCheck);
+                                             $fileName = getMethodDot($obj,$apiName,$parasToCheck);
                                             if($fileName !~ m/^ERROR/ ) {
                                                 $className = $obj;
                                                 @list=();
@@ -600,7 +600,7 @@ sub parseMethodDotFile {
     close $FILE;
     print "==== data ====" , "\n";
     print Dumper($methodCFG->{_local});
-    print Dumper($CLASS_REFERENCE);
+    #print Dumper($CLASS_REFERENCE);
 
     # parse menu selection
     #parseMenuSelection();
@@ -632,9 +632,15 @@ sub parseMethodDotFile {
         # add ui event branch
         for $UIEventHash (@{$ALL_UI_EVENT->{$activityName}}) {
             # relate to sub UIEventAPIParser
-            my $UINode = $UIEventHash->{node}->{_subMethod}->{_root};
             my $UIEvent = $UIEventHash->{event};
             my $UIView = $UIEventHash->{view};
+            my $UINode;
+            if($UIEvent eq 'pressMenu') {
+                $UINode = $UIEventHash->{node};
+            }
+            else {
+                $UINode = $UIEventHash->{node}->{_subMethod}->{_root};
+            }
             push(@{$nodeArray[$endNodeNum]->{_nextUINode}}, {node=>$UINode, event=>$UIEvent, view=>$UIView});
         }
     }
@@ -735,7 +741,7 @@ sub parseMenuSelection {
         if($nodeArray->[$i]->{_label} =~ m/(.*) = .*\.getItemId\(\)/) {
             my $var = $1;
             $var =~ s/\$/\\\$/g;
-            for(my $j = $i; $j <= $nodeNum; $j++) {
+            for(my $j = $i+1; $j <= $nodeNum; $j++) {
                 # tableswitch($i9)\n        {\n            case 0: goto label2;\n            case 1: goto label3;\n            case 2: goto label10;\n            case 3: goto label19;\n            case 4: goto label17;\n            case     5: goto label20;\n            case 6: goto label21;\n            case 7: goto label22;\n            case 8: goto label0;\n            case 9: goto label23;\n            case 10: goto label24;\n            case 11: goto label0;\n                case 12: goto label18;\n            default: goto label0;\n        }"
                 if($nodeArray->[$j]->{_label} =~ m/tableswitch\($var\).*{(.*)}/) {
                     my $switchContent = $1;
