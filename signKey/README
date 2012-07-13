@@ -1,0 +1,5 @@
+#
+#   re-sign.jar usage
+#       java -jar re-sign.jar source.apk destination.apk
+#   Resign the apk, then we can use JUnit(robotium) to test it.
+#
