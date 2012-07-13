@@ -39,11 +39,15 @@ sub dumpGraph {
 
 sub FindAllQueryAPINode {
     my ($node, $CandidateNodeArray, $CandidatePathArray, $PathToCandidateNode, @returnStack) = @_;
+    my $uiHashNode = $node;
+    if(defined $node->{node}) {
+        $node = $node->{node};
+    }
     # stop condition
     #  1. find circle
     #  2. no next node
     $node->{_scanQueryID} = 1;
-    push @$PathToCandidateNode, $node;
+    push @$PathToCandidateNode, $uiHashNode;
     # check the label is 'ContentResolver.query' api or not
     #print "$node->{_nodeNum}: $node->{_label} - $node->{_methodCFG}->{_methodName}\n" ;
     if($node->{_label} =~ m/\.query\(.+\)/) {
@@ -51,11 +55,14 @@ sub FindAllQueryAPINode {
         # dump and save the candidate node
         print "^[[0;34m===> path start^[[0m\n";
         for my $n (@$PathToCandidateNode) {
-            if(defined $n->{_nextUINode}) {
+            my $nHash = $n;
+            if(defined $n->{node}) {
+                $nHash = $n->{node};
+                print "[1;35m$n->{event}:$n->{view}[0m\n";
             }
-            print "$n->{_nodeNum}: $n->{_label} - $n->{_methodCFG}->{_methodName}\n" ;
+            print "$nHash->{_nodeNum}: $nHash->{_label} - $nHash->{_methodCFG}->{_methodName}\n" ;
         }
-        print "^[[0;34m===> path end^[[0m\n";
+        print "[0;34m===> path end[0m\n";
     }
     ## stop condition
     #if($#{$node->{_nextNode}} == -1 && $#{$node->{_nextUINode}} == -1 && $#returnStack == -1) {
@@ -78,7 +85,11 @@ sub FindAllQueryAPINode {
     }
     for my $nextNode (@$nextNodeArray) {
         # include the condition - circle found
-        FindAllQueryAPINode($nextNode, $CandidateNodeArray, $CandidatePathArray, $PathToCandidateNode, @returnStack) if $nextNode->{_scanQueryID} == 0;
+        my $hashNode = $nextNode;
+        if(defined $nextNode->{node}) {
+            $hashNode = $nextNode->{node};
+        }
+        FindAllQueryAPINode($nextNode, $CandidateNodeArray, $CandidatePathArray, $PathToCandidateNode, @returnStack) if $hashNode->{_scanQueryID} == 0;
     }
     pop @$PathToCandidateNode;
 }
@@ -93,7 +104,7 @@ sub GetNextNodeArray {
     # event callback function 
     if($#{$nextUINodeArray} > -1) {
         for my $UINodeHash (@$nextUINodeArray) {
-            push @$nextNodeArray, $UINodeHash->{node};
+            push @$nextNodeArray, $UINodeHash;
         }
     }
 
