@@ -54,14 +54,18 @@ sub FindAllQueryAPINode {
         # find the end point
         # dump and save the candidate node
         print "^[[0;34m===> path start^[[0m\n";
+        open my $outputFile, " >> outcome";
+        print $outputFile "===start===\n";
         for my $n (@$PathToCandidateNode) {
             my $nHash = $n;
             if(defined $n->{node}) {
                 $nHash = $n->{node};
-                print "[1;35m$n->{event}:$n->{view}[0m\n";
+                print $outputFile "$n->{event}:$n->{view}\n";
             }
             print "$nHash->{_nodeNum}: $nHash->{_label} - $nHash->{_methodCFG}->{_methodName}\n" ;
         }
+        print $outputFile "===end===\n";
+        close $outputFile;
         print "[0;34m===> path end[0m\n";
     }
     ## stop condition
