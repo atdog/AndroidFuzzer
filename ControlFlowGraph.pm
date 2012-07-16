@@ -3,6 +3,7 @@ package ControlFlowGraph;
 use Data::Dumper;
 
 my $PATH_ID = 1;
+my @ALL_OUTCOME_ARRAY;
 
 sub new{
     my $class = shift;
@@ -54,18 +55,24 @@ sub FindAllQueryAPINode {
         # find the end point
         # dump and save the candidate node
         print "^[[0;34m===> path start^[[0m\n";
-        open my $outputFile, " >> outcome";
-        print $outputFile "===start===\n";
+        my @outcomeStack;
+        push @outcomeStack, "===start===\n";
         for my $n (@$PathToCandidateNode) {
             my $nHash = $n;
             if(defined $n->{node}) {
                 $nHash = $n->{node};
-                print $outputFile "$n->{event}:$n->{view}\n";
+                #print $outputFile "$n->{event}:$n->{view}\n";
+                push @outcomeStack, "$n->{event}:$n->{view}\n";
             }
             print "$nHash->{_nodeNum}: $nHash->{_label} - $nHash->{_methodCFG}->{_methodName}\n" ;
         }
-        print $outputFile "===end===\n";
-        close $outputFile;
+        push @outcomeStack, "===end===\n";
+        if(CombineAndCheck(@outcomeStack) == 0) {
+            open my $outputFile, " >> outcome";
+            print $outputFile for @outcomeStack; 
+            close $outputFile;
+        }
+
         print "[0;34m===> path end[0m\n";
     }
     ## stop condition
@@ -98,6 +105,7 @@ sub FindAllQueryAPINode {
     pop @$PathToCandidateNode;
 }
 
+
 sub GetNextNodeArray {
     my ($node) = @_;
 
@@ -113,6 +121,32 @@ sub GetNextNodeArray {
     }
 
     return $nextNodeArray;
+}
+
+sub CombineAndCheck {
+    my (@outcomeStack) = @_;
+
+    my $isExistInTheOutcomeArray = 0;
+
+    for $eachOutcomStack (@ALL_OUTCOME_ARRAY) {
+        if($#outcomeStack == $#{$eachOutcomStack}) {
+            my $isSame = 1;
+            for(my $i = 0; $i < $#outcomeStack; ++$i) {
+                if($eachOutcomStack->[$i] ne $outcomeStack[$i]) {
+                    $isSame = 0;
+                }
+            }
+            if($isSame == 1) {
+                $isExistInTheOutcomeArray = 1;
+                break;
+            }
+        }
+    }
+
+    if($isExistInTheOutcomeArray == 0) {
+        push @ALL_OUTCOME_ARRAY, \@outcomeStack;
+    }
+    return $isExistInTheOutcomeArray;
 }
 
 sub dumpNode {
