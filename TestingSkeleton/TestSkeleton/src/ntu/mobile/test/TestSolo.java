@@ -7,8 +7,8 @@ import android.util.Log;
 
 public class TestSolo extends ActivityInstrumentationTestCase2 {
 
-	private static final String TARGET_PACKAGE_ID = "com.mywoo.clog";
-	private static final String LAUNCHER_ACTIVITY_FULL_CLASSNAME = "com.mywoo.clog.Clog";
+	private static final String TARGET_PACKAGE_ID = "**PACKAGE**";
+	private static final String LAUNCHER_ACTIVITY_FULL_CLASSNAME = "**CLASS**";
 
 	private static Class<?> launcherActivityClass;
 	static {
@@ -33,7 +33,7 @@ public class TestSolo extends ActivityInstrumentationTestCase2 {
 	}
 
 	public void testCanOpenSettings() {
-		solo.clickOnView(getActivity().findViewById(2131165203));
+        **CODE**
 	}
 
 	@Override
