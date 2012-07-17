@@ -2,13 +2,21 @@
 
 [ ! -n "$1" ] && exit 0
 
+###
+#   Note: 
+#       if there exist the exception
+#           RuntimeException: "android.os.Parcelable" class not found
+#       then please check whether the variable $SOOT_CLASSPATH is android-14
+#       (api level must bigger than 10)   by  hcsu
+###
+
 #####
 # Initialization
 #####
 APK_LOCATION=$1;
 DIR_NAME=`echo $APK_LOCATION | sed -En 's/\.apk$//p'`
 #SOOT_CLASSPATH="framework/core/classes_dex2jar.jar:framework/bouncycastle/classes_dex2jar.jar:framework/ext/classes_dex2jar.jar:framework/framework/classes_dex2jar.jar:framework/android.policy/classes_dex2jar.jar:framework/services/classes_dex2jar.jar:framework/core-junit/classes_dex2jar.jar:framework/com.htc.commonctrl/classes_dex2jar.jar:framework/com.htc.framework/classes_dex2jar.jar:framework/com.htc.android.pimlib/classes_dex2jar.jar:framework/com.htc.android.easopen/classes_dex2jar.jar:framework/com.scalado.util.ScaladoUtil/classes_dex2jar.jar:framework/com.orange.authentication.simcard/classes_dex2jar.jar:framework/android.supl/classes_dex2jar.jar:framework/kafdex/classes_dex2jar.jar:$DIR_NAME/classes_dex2jar.jar:"
-SOOT_CLASSPATH="/Users/atdog/eclipse-android/android-sdk-mac_x86/platforms/android-14/android.jar"
+SOOT_CLASSPATH="/Users/brucesu/android_sdk/platforms/android-14/android.jar"
 
 #####
 # Translate AndroidManifest file from binary to human readable
