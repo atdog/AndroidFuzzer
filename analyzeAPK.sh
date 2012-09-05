@@ -25,14 +25,14 @@ unzip -n $APK_LOCATION -d $DIR_NAME
 #
 ######
 ## dex 2 jar
-## Retrieve the classes from dex file
+## Retrieve classes from the dex file
 ######
 echo "[0;32m=====> dex2jar[0m"
 tools/dex2jar-0.0.9.8/dex2jar.sh "$DIR_NAME/classes.dex" || (echo "[0;31m=====> Classes.dex not exist [0m" && exit)
 (cd $DIR_NAME && jar xvf classes_dex2jar.jar)
 
 #####
-# Use soot.jar to generate dot file for constructing CFG
+# Use soot.jar to generate dot files for rebuild the CFG
 #####
 echo "[0;32m=====> soot[0m"
 java -jar tools/soot-2.5.0.jar -dump-cfg jb.uce -cp $SOOT_CLASSPATH:$DIR_NAME/classes_dex2jar.jar -process-path $DIR_NAME -d $DIR_NAME/sootOutput
